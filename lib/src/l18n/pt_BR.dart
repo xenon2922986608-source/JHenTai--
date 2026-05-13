@@ -36,6 +36,15 @@ class pt_BR {
       'home': "Home",
       'gallery': "Galeria",
       'setting': 'Configuração',
+      'mangaLibrary': 'Biblioteca',
+      'mangaLibraryOfflineDetail': 'Detalhes offline',
+      'userRating': 'Nota pessoal',
+      'downloadTime': 'Hora do download',
+      'localPath': 'Caminho local',
+      'selectedTags': 'Tags selecionadas',
+      'andLogic': 'E',
+      'clearTagFilter': 'Limpar filtro de tags',
+      'tags': 'Tags',
 
       /// schedule
       'dawnOfaNewDay': 'It is the dawn of a new day!',

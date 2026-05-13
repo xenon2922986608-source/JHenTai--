@@ -36,6 +36,15 @@ class en_US {
       'home': "Home",
       'gallery': "Gallery",
       'setting': 'Setting',
+      'mangaLibrary': 'Manga Library',
+      'mangaLibraryOfflineDetail': 'Offline Detail',
+      'userRating': 'Personal Rating',
+      'downloadTime': 'Download Time',
+      'localPath': 'Local Path',
+      'selectedTags': 'Selected Tags',
+      'andLogic': 'AND',
+      'clearTagFilter': 'Clear Tag Filter',
+      'tags': 'Tags',
 
       /// schedule
       'dawnOfaNewDay': 'It is the dawn of a new day!',
