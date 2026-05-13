@@ -1,7 +1,8 @@
 name: Build & Release
 
-# Trigger on push to master branch or with a tag
+# Trigger manually, on push to master branch, or with a tag
 on:
+  workflow_dispatch:
   push:
     branches:
       - 'master'
