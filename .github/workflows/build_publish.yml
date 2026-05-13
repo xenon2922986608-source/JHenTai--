@@ -56,7 +56,7 @@ jobs:
             cache_pod_path: macos/Pods
             cache_pod_restore_keys_hash_file: macos/Podfile.lock
             artifact_name: release-macOS
-            artifact_path: /Users/runner/work/JHenTai/JHenTai/*.dmg
+            artifact_path: ${{ github.workspace }}/*.dmg
     outputs:
       version: ${{ steps.get_version.outputs.version }}
       arch: ${{ steps.get_version.outputs.arch}}
@@ -70,9 +70,39 @@ jobs:
       # Add Android keystore
       - name: Setup Android keystore
         if: matrix.target == 'Android'
+        shell: bash
+        env:
+          ENCODED_KEYSTORE: ${{ secrets.ENCODED_KEYSTORE }}
+          KEY_PROPERTIES: ${{ secrets.KEY_PROPERTIES }}
         run: |
-          echo "${{ secrets.ENCODED_KEYSTORE }}" | base64 -di > android/app/upload-keystore.jks
-          echo "${{ secrets.KEY_PROPERTIES }}" > android/key.properties
+          set -e
+          mkdir -p android/app
+
+          if [ -n "$ENCODED_KEYSTORE" ] && [ -n "$KEY_PROPERTIES" ]; then
+            echo "$ENCODED_KEYSTORE" | base64 -di > android/app/upload-keystore.jks
+            printf '%s\n' "$KEY_PROPERTIES" > android/key.properties
+            echo "Using repository Android signing config"
+          else
+            echo "Using temporary CI Android signing config"
+
+            keytool -genkeypair \
+              -v \
+              -keystore android/app/ci-upload-keystore.jks \
+              -storepass android \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -alias ci \
+              -dname "CN=CI,O=Fork,C=US"
+
+            cat > android/key.properties <<'EOF'
+          storePassword=android
+          keyPassword=android
+          keyAlias=ci
+          storeFile=ci-upload-keystore.jks
+          EOF
+          fi
       # Add JHenTai api serret
       - name: Setup JHenTai API Secret
         shell: bash
