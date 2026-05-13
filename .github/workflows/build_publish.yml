@@ -1,7 +1,8 @@
 name: Build & Release
 
-# Trigger on push to master branch or with a tag
+# Trigger manually, on push to master branch, or with a tag
 on:
+  workflow_dispatch:
   push:
     branches:
       - 'master'
@@ -55,7 +56,7 @@ jobs:
             cache_pod_path: macos/Pods
             cache_pod_restore_keys_hash_file: macos/Podfile.lock
             artifact_name: release-macOS
-            artifact_path: /Users/runner/work/JHenTai/JHenTai/*.dmg
+            artifact_path: ${{ github.workspace }}/*.dmg
     outputs:
       version: ${{ steps.get_version.outputs.version }}
       arch: ${{ steps.get_version.outputs.arch}}
@@ -69,13 +70,67 @@ jobs:
       # Add Android keystore
       - name: Setup Android keystore
         if: matrix.target == 'Android'
+        shell: bash
+        env:
+          ENCODED_KEYSTORE: ${{ secrets.ENCODED_KEYSTORE }}
+          KEY_PROPERTIES: ${{ secrets.KEY_PROPERTIES }}
         run: |
-          echo "${{ secrets.ENCODED_KEYSTORE }}" | base64 -di > android/app/upload-keystore.jks
-          echo "${{ secrets.KEY_PROPERTIES }}" > android/key.properties
+          set -e
+          mkdir -p android/app
+
+          if [ -n "$ENCODED_KEYSTORE" ] && [ -n "$KEY_PROPERTIES" ]; then
+            echo "$ENCODED_KEYSTORE" | base64 -di > android/app/upload-keystore.jks
+            printf '%s\n' "$KEY_PROPERTIES" > android/key.properties
+            echo "Using repository Android signing config"
+          else
+            echo "Using temporary CI Android signing config"
+
+            keytool -genkeypair \
+              -v \
+              -keystore android/app/ci-upload-keystore.jks \
+              -storepass android \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -alias ci \
+              -dname "CN=CI,O=Fork,C=US"
+
+            cat > android/key.properties <<'EOF'
+          storePassword=android
+          keyPassword=android
+          keyAlias=ci
+          storeFile=ci-upload-keystore.jks
+          EOF
+          fi
       # Add JHenTai api serret
       - name: Setup JHenTai API Secret
+        shell: bash
+        env:
+          JH_API_SECRET_CONFIG: ${{ secrets.JH_API_SECRET_CONFIG }}
         run: |
-          echo "${{ secrets.JH_API_SECRET_CONFIG }}" > lib/src/config/jh_api_secret_config.dart
+          mkdir -p lib/src/config
+
+          if [ -n "$JH_API_SECRET_CONFIG" ]; then
+            printf '%s\n' "$JH_API_SECRET_CONFIG" > lib/src/config/jh_api_secret_config.dart
+            echo "Using repository secret JHApiSecretConfig"
+          else
+            echo "Using fallback JHApiSecretConfig"
+            cat > lib/src/config/jh_api_secret_config.dart <<'EOF'
+          class JHApiSecretConfig {
+            static const String secret = '';
+          }
+          EOF
+          fi
+
+          if ! grep -q "JHApiSecretConfig" lib/src/config/jh_api_secret_config.dart; then
+            echo "Generated secret config is invalid; replacing with fallback JHApiSecretConfig"
+            cat > lib/src/config/jh_api_secret_config.dart <<'EOF'
+          class JHApiSecretConfig {
+            static const String secret = '';
+          }
+          EOF
+          fi
       # Setup Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -153,14 +208,30 @@ jobs:
       # Build Windows .zip
       - name: Build Windows
         if: matrix.target == 'Windows'
+        shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
+
           flutter build windows -t lib/src/main.dart --release
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
           $DestDir = "build\windows\JHenTai_${{ steps.get_version.outputs.version }}"
           $SrcDir = "build\windows\x64\runner\Release"
-          New-Item -Path $DestDir -ItemType Directory
-          Copy-Item $SrcDir\* -Recurse $DestDir
-          Copy-Item -Filter *.dll -Path windows\* -Destination $DestDir -Force
-          Compress-Archive $DestDir build\windows\JHenTai_${{ steps.get_version.outputs.version }}_Windows.zip
+
+          if (!(Test-Path $SrcDir)) {
+            throw "Expected Windows release directory not found: $SrcDir"
+          }
+
+          New-Item -Path $DestDir -ItemType Directory -Force
+          Copy-Item -Path "$SrcDir\*" -Destination $DestDir -Recurse -Force
+
+          if (Test-Path "windows\*.dll") {
+            Copy-Item -Path "windows\*.dll" -Destination $DestDir -Force
+          }
+
+          Compress-Archive -Path $DestDir -DestinationPath "build\windows\JHenTai_${{ steps.get_version.outputs.version }}_Windows.zip" -Force
       # Build Linux .deb
       - name: Build Linux deb
         if: matrix.target == 'Linux-x64-deb' || matrix.target == 'Linux-arm64-deb'
