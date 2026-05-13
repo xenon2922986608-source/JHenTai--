@@ -36,6 +36,15 @@ class zh_CN {
       'home': "主页",
       'gallery': "画廊",
       'setting': '设置',
+      'mangaLibrary': '漫画库',
+      'mangaLibraryOfflineDetail': '离线详情',
+      'userRating': '个人评分',
+      'downloadTime': '下载时间',
+      'localPath': '本地路径',
+      'selectedTags': '已选标签',
+      'andLogic': '与',
+      'clearTagFilter': '清除标签筛选',
+      'tags': '标签',
 
       /// unlock page
       'localizedReason': '请验证以继续',

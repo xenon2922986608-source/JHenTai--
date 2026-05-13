@@ -36,6 +36,15 @@ class ru_RU {
       'home': "Главная",
       'gallery': "Галерея",
       'setting': 'Настройки',
+      'mangaLibrary': 'Manga Library',
+      'mangaLibraryOfflineDetail': 'Offline Detail',
+      'userRating': 'Personal Rating',
+      'downloadTime': 'Download Time',
+      'localPath': 'Local Path',
+      'selectedTags': 'Selected Tags',
+      'andLogic': 'AND',
+      'clearTagFilter': 'Clear Tag Filter',
+      'tags': 'Tags',
 
       /// schedule
       'dawnOfaNewDay': 'Наступил рассвет нового дня!',
