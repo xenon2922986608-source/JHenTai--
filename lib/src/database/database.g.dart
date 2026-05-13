@@ -6629,6 +6629,256 @@ class LocalConfigCompanion extends UpdateCompanion<LocalConfigData> {
   }
 }
 
+
+class $MangaLibraryUserDataTable extends MangaLibraryUserData
+    with TableInfo<$MangaLibraryUserDataTable, MangaLibraryUserDataData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MangaLibraryUserDataTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _gidMeta = const VerificationMeta('gid');
+  @override
+  late final GeneratedColumn<int> gid = GeneratedColumn<int>(
+      'gid', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _itemTypeMeta = const VerificationMeta('itemType');
+  @override
+  late final GeneratedColumn<String> itemType = GeneratedColumn<String>(
+      'item_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _userRatingMeta = const VerificationMeta('userRating');
+  @override
+  late final GeneratedColumn<double> userRating = GeneratedColumn<double>(
+      'user_rating', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<String> updatedAt = GeneratedColumn<String>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [gid, itemType, userRating, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'manga_library_user_data';
+  @override
+  VerificationContext validateIntegrity(Insertable<MangaLibraryUserDataData> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('gid')) {
+      context.handle(_gidMeta, gid.isAcceptableOrUnknown(data['gid']!, _gidMeta));
+    } else if (isInserting) {
+      context.missing(_gidMeta);
+    }
+    if (data.containsKey('item_type')) {
+      context.handle(_itemTypeMeta, itemType.isAcceptableOrUnknown(data['item_type']!, _itemTypeMeta));
+    } else if (isInserting) {
+      context.missing(_itemTypeMeta);
+    }
+    if (data.containsKey('user_rating')) {
+      context.handle(_userRatingMeta, userRating.isAcceptableOrUnknown(data['user_rating']!, _userRatingMeta));
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta, updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {gid, itemType};
+  @override
+  MangaLibraryUserDataData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MangaLibraryUserDataData(
+      gid: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}gid'])!,
+      itemType: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}item_type'])!,
+      userRating: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}user_rating']),
+      updatedAt: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $MangaLibraryUserDataTable createAlias(String alias) {
+    return $MangaLibraryUserDataTable(attachedDatabase, alias);
+  }
+}
+
+class MangaLibraryUserDataData extends DataClass implements Insertable<MangaLibraryUserDataData> {
+  final int gid;
+  final String itemType;
+  final double? userRating;
+  final String updatedAt;
+  const MangaLibraryUserDataData({
+    required this.gid,
+    required this.itemType,
+    this.userRating,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['gid'] = Variable<int>(gid);
+    map['item_type'] = Variable<String>(itemType);
+    if (!nullToAbsent || userRating != null) {
+      map['user_rating'] = Variable<double>(userRating);
+    }
+    map['updated_at'] = Variable<String>(updatedAt);
+    return map;
+  }
+
+  MangaLibraryUserDataCompanion toCompanion(bool nullToAbsent) {
+    return MangaLibraryUserDataCompanion(
+      gid: Value(gid),
+      itemType: Value(itemType),
+      userRating: userRating == null && nullToAbsent ? const Value.absent() : Value(userRating),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory MangaLibraryUserDataData.fromJson(Map<String, dynamic> json, {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MangaLibraryUserDataData(
+      gid: serializer.fromJson<int>(json['gid']),
+      itemType: serializer.fromJson<String>(json['itemType']),
+      userRating: serializer.fromJson<double?>(json['userRating']),
+      updatedAt: serializer.fromJson<String>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'gid': serializer.toJson<int>(gid),
+      'itemType': serializer.toJson<String>(itemType),
+      'userRating': serializer.toJson<double?>(userRating),
+      'updatedAt': serializer.toJson<String>(updatedAt),
+    };
+  }
+
+  MangaLibraryUserDataData copyWith({int? gid, String? itemType, Value<double?> userRating = const Value.absent(), String? updatedAt}) =>
+      MangaLibraryUserDataData(
+        gid: gid ?? this.gid,
+        itemType: itemType ?? this.itemType,
+        userRating: userRating.present ? userRating.value : this.userRating,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+
+  @override
+  String toString() {
+    return (StringBuffer('MangaLibraryUserDataData(')
+          ..write('gid: $gid, ')
+          ..write('itemType: $itemType, ')
+          ..write('userRating: $userRating, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(gid, itemType, userRating, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MangaLibraryUserDataData &&
+          other.gid == this.gid &&
+          other.itemType == this.itemType &&
+          other.userRating == this.userRating &&
+          other.updatedAt == this.updatedAt);
+}
+
+class MangaLibraryUserDataCompanion extends UpdateCompanion<MangaLibraryUserDataData> {
+  final Value<int> gid;
+  final Value<String> itemType;
+  final Value<double?> userRating;
+  final Value<String> updatedAt;
+  final Value<int> rowid;
+  const MangaLibraryUserDataCompanion({
+    this.gid = const Value.absent(),
+    this.itemType = const Value.absent(),
+    this.userRating = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MangaLibraryUserDataCompanion.insert({
+    required Value<int> gid,
+    required String itemType,
+    this.userRating = const Value.absent(),
+    required String updatedAt,
+    this.rowid = const Value.absent(),
+  })  : gid = gid,
+        itemType = Value(itemType),
+        updatedAt = Value(updatedAt);
+  static Insertable<MangaLibraryUserDataData> custom({
+    Expression<int>? gid,
+    Expression<String>? itemType,
+    Expression<double>? userRating,
+    Expression<String>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (gid != null) 'gid': gid,
+      if (itemType != null) 'item_type': itemType,
+      if (userRating != null) 'user_rating': userRating,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MangaLibraryUserDataCompanion copyWith({
+    Value<int>? gid,
+    Value<String>? itemType,
+    Value<double?>? userRating,
+    Value<String>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return MangaLibraryUserDataCompanion(
+      gid: gid ?? this.gid,
+      itemType: itemType ?? this.itemType,
+      userRating: userRating ?? this.userRating,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (gid.present) {
+      map['gid'] = Variable<int>(gid.value);
+    }
+    if (itemType.present) {
+      map['item_type'] = Variable<String>(itemType.value);
+    }
+    if (userRating.present) {
+      map['user_rating'] = Variable<double>(userRating.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<String>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MangaLibraryUserDataCompanion(')
+          ..write('gid: $gid, ')
+          ..write('itemType: $itemType, ')
+          ..write('userRating: $userRating, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDb extends GeneratedDatabase {
   _$AppDb(QueryExecutor e) : super(e);
   $AppDbManager get managers => $AppDbManager(this);
@@ -6655,6 +6905,8 @@ abstract class _$AppDb extends GeneratedDatabase {
   late final $DioCacheTable dioCache = $DioCacheTable(this);
   late final $BlockRuleTable blockRule = $BlockRuleTable(this);
   late final $LocalConfigTable localConfig = $LocalConfigTable(this);
+  late final $MangaLibraryUserDataTable mangaLibraryUserData =
+      $MangaLibraryUserDataTable(this);
   late final Index idxKey =
       Index('idx_key', 'CREATE INDEX idx_key ON tag (_key)');
   late final Index idxTagName =
@@ -6689,6 +6941,8 @@ abstract class _$AppDb extends GeneratedDatabase {
       Index('idx_target', 'CREATE INDEX idx_target ON block_rule (target)');
   late final Index lIdxUTime = Index(
       'l_idx_u_time', 'CREATE INDEX l_idx_u_time ON local_config (utime)');
+  late final Index mluIdxUpdatedAt = Index('mlu_idx_updated_at',
+      'CREATE INDEX mlu_idx_updated_at ON manga_library_user_data (updated_at)');
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6710,6 +6964,7 @@ abstract class _$AppDb extends GeneratedDatabase {
         dioCache,
         blockRule,
         localConfig,
+        mangaLibraryUserData,
         idxKey,
         idxTagName,
         aIdxInsertTime,
@@ -6726,7 +6981,8 @@ abstract class _$AppDb extends GeneratedDatabase {
         idxUrl,
         idxGroupId,
         idxTarget,
-        lIdxUTime
+        lIdxUTime,
+        mluIdxUpdatedAt
       ];
 }
 

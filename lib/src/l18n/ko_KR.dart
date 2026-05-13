@@ -36,6 +36,15 @@ class ko_KR {
       'home': "홈",
       'gallery': "갤러리",
       'setting': '설정',
+      'mangaLibrary': 'Manga Library',
+      'mangaLibraryOfflineDetail': 'Offline Detail',
+      'userRating': 'Personal Rating',
+      'downloadTime': 'Download Time',
+      'localPath': 'Local Path',
+      'selectedTags': 'Selected Tags',
+      'andLogic': 'AND',
+      'clearTagFilter': 'Clear Tag Filter',
+      'tags': 'Tags',
 
       /// schedule
       'dawnOfaNewDay': 'It is the dawn of a new day!',

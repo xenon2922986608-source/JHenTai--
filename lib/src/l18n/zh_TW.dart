@@ -36,6 +36,15 @@ class zh_TW {
       'home': "首頁",
       'gallery': "畫廊",
       'setting': '設定',
+      'mangaLibrary': '漫畫庫',
+      'mangaLibraryOfflineDetail': '離線詳情',
+      'userRating': '個人評分',
+      'downloadTime': '下載時間',
+      'localPath': '本機路徑',
+      'selectedTags': '已選標籤',
+      'andLogic': '且',
+      'clearTagFilter': '清除標籤篩選',
+      'tags': '標籤',
 
       /// unlock page
       'localizedReason': '請驗證以繼續',
