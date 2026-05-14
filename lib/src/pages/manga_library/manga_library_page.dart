@@ -42,15 +42,24 @@ class MangaLibraryPage extends StatelessWidget {
               );
             },
           ),
+          IconButton(
+            tooltip: 'search'.tr,
+            icon: const Icon(Icons.search),
+            onPressed: () => _showSearchDialog(context),
+          ),
           GetBuilder<MangaLibraryService>(
             id: MangaLibraryService.libraryChangedId,
-            builder: (_) => mangaLibraryService.selectedTags.isEmpty
-                ? const SizedBox()
-                : IconButton(
-                    tooltip: 'clearTagFilter'.tr,
+            builder: (_) => _buildSortButton(),
+          ),
+          GetBuilder<MangaLibraryService>(
+            id: MangaLibraryService.libraryChangedId,
+            builder: (_) => mangaLibraryService.hasActiveFilters
+                ? IconButton(
+                    tooltip: 'clearAllFilters'.tr,
                     icon: const Icon(Icons.filter_alt_off),
-                    onPressed: mangaLibraryService.clearSelectedTags,
-                  ),
+                    onPressed: mangaLibraryService.clearFilters,
+                  )
+                : const SizedBox(),
           ),
         ],
       ),
@@ -72,7 +81,8 @@ class MangaLibraryPage extends StatelessWidget {
 
     return Column(
       children: [
-        if (mangaLibraryService.selectedTags.isNotEmpty) _buildSelectedTags(),
+        _buildLibraryToolbar(items.length),
+        if (mangaLibraryService.hasActiveFilters) _buildActiveFilters(),
         Expanded(
           child: items.isEmpty
               ? Center(child: Text('noData'.tr))
@@ -91,7 +101,80 @@ class MangaLibraryPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSelectedTags() {
+  Widget _buildLibraryToolbar(int filteredCount) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Chip(label: Text('${'itemCount'.tr}: $filteredCount/${mangaLibraryService.items.length}')),
+          _buildTypeFilterButton(),
+          _buildCategoryFilterButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypeFilterButton() {
+    return PopupMenuButton<String>(
+      tooltip: 'filterByType'.tr,
+      onSelected: (value) {
+        if (value == 'gallery') {
+          mangaLibraryService.setSelectedType(MangaLibraryItemType.gallery);
+        } else if (value == 'archive') {
+          mangaLibraryService.setSelectedType(MangaLibraryItemType.archive);
+        } else {
+          mangaLibraryService.setSelectedType(null);
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem<String>(value: 'all', child: Text('allTypes'.tr)),
+        PopupMenuItem<String>(value: 'gallery', child: Text('gallery'.tr)),
+        PopupMenuItem<String>(value: 'archive', child: Text('archive'.tr)),
+      ],
+      child: Chip(
+        avatar: const Icon(Icons.collections_bookmark, size: 18),
+        label: Text('${'filterByType'.tr}: ${_typeTitle(mangaLibraryService.selectedType)}'),
+      ),
+    );
+  }
+
+  Widget _buildCategoryFilterButton() {
+    return PopupMenuButton<String>(
+      tooltip: 'filterByCategory'.tr,
+      onSelected: (value) => mangaLibraryService.setSelectedCategory(value == '__all__' ? null : value),
+      itemBuilder: (_) => [
+        PopupMenuItem<String>(value: '__all__', child: Text('allCategories'.tr)),
+        ...mangaLibraryService.availableCategories.map((category) => PopupMenuItem<String>(value: category, child: Text(category))),
+      ],
+      child: Chip(
+        avatar: const Icon(Icons.category, size: 18),
+        label: Text('${'category'.tr}: ${mangaLibraryService.selectedCategory ?? 'allCategories'.tr}'),
+      ),
+    );
+  }
+
+  Widget _buildSortButton() {
+    return PopupMenuButton<MangaLibrarySortType>(
+      tooltip: 'sortBy'.tr,
+      icon: const Icon(Icons.sort),
+      onSelected: mangaLibraryService.setSortType,
+      itemBuilder: (_) => MangaLibrarySortType.values
+          .map(
+            (type) => CheckedPopupMenuItem<MangaLibrarySortType>(
+              value: type,
+              checked: type == mangaLibraryService.sortType,
+              child: Text(_sortTitle(type)),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Widget _buildActiveFilters() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
@@ -100,7 +183,23 @@ class MangaLibraryPage extends StatelessWidget {
         runSpacing: 6,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Text('${'selectedTags'.tr}(${'andLogic'.tr})'),
+          Text('${'activeFilters'.tr}(${'andLogic'.tr})'),
+          if (mangaLibraryService.searchKeyword.trim().isNotEmpty)
+            InputChip(
+              avatar: const Icon(Icons.search, size: 18),
+              label: Text(mangaLibraryService.searchKeyword),
+              onDeleted: () => mangaLibraryService.setSearchKeyword(''),
+            ),
+          if (mangaLibraryService.selectedType != null)
+            InputChip(
+              label: Text(_typeTitle(mangaLibraryService.selectedType)),
+              onDeleted: () => mangaLibraryService.setSelectedType(null),
+            ),
+          if (mangaLibraryService.selectedCategory != null)
+            InputChip(
+              label: Text(mangaLibraryService.selectedCategory!),
+              onDeleted: () => mangaLibraryService.setSelectedCategory(null),
+            ),
           ...mangaLibraryService.selectedTags.map(
             (tag) => InputChip(
               label: Text(_tagText(tag)),
@@ -110,6 +209,56 @@ class MangaLibraryPage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _showSearchDialog(BuildContext context) async {
+    TextEditingController controller = TextEditingController(text: mangaLibraryService.searchKeyword);
+    String? keyword = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('search'.tr),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(hintText: 'librarySearchHint'.tr),
+          onSubmitted: (value) => Get.back(result: value),
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(result: ''), child: Text('clear'.tr)),
+          TextButton(onPressed: () => Get.back(), child: Text('cancel'.tr)),
+          TextButton(onPressed: () => Get.back(result: controller.text), child: Text('OK'.tr)),
+        ],
+      ),
+    );
+    controller.dispose();
+
+    if (keyword != null) {
+      mangaLibraryService.setSearchKeyword(keyword);
+    }
+  }
+
+  String _typeTitle(MangaLibraryItemType? type) {
+    if (type == null) {
+      return 'allTypes'.tr;
+    }
+
+    switch (type) {
+      case MangaLibraryItemType.gallery:
+        return 'gallery'.tr;
+      case MangaLibraryItemType.archive:
+        return 'archive'.tr;
+    }
+  }
+
+  String _sortTitle(MangaLibrarySortType type) {
+    switch (type) {
+      case MangaLibrarySortType.downloadTimeDesc:
+        return 'sortDownloadTimeDesc'.tr;
+      case MangaLibrarySortType.titleAsc:
+        return 'sortTitleAsc'.tr;
+      case MangaLibrarySortType.pageCountDesc:
+        return 'sortPageCountDesc'.tr;
+    }
   }
 }
 
@@ -141,7 +290,12 @@ class _MangaLibraryCard extends StatelessWidget {
                       spacing: 6,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        EHGalleryCategoryTag(category: item.category, height: 20, textStyle: const TextStyle(height: 1, fontSize: 12, color: Colors.white)),
+                        EHGalleryCategoryTag(
+                          category: item.category,
+                          height: 20,
+                          textStyle: const TextStyle(height: 1, fontSize: 12, color: Colors.white),
+                          onTap: () => mangaLibraryService.setSelectedCategory(item.category),
+                        ),
                         Text(item.type == MangaLibraryItemType.gallery ? 'gallery'.tr : 'archive'.tr),
                       ],
                     ),

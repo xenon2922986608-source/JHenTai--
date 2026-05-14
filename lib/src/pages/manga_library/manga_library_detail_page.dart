@@ -109,7 +109,7 @@ class _MangaLibraryDetailBody extends StatelessWidget {
                       runSpacing: 6,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        EHGalleryCategoryTag(category: item.category),
+                        EHGalleryCategoryTag(category: item.category, onTap: () => mangaLibraryService.setSelectedCategory(item.category)),
                         Chip(label: Text(item.type == MangaLibraryItemType.gallery ? 'gallery'.tr : 'archive'.tr)),
                       ],
                     ),

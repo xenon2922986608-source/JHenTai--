@@ -26,6 +26,11 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   final List<TagData> selectedTags = [];
   final Set<String> ignoredSimilarityPairs = {};
 
+  String searchKeyword = '';
+  MangaLibraryItemType? selectedType;
+  String? selectedCategory;
+  MangaLibrarySortType sortType = MangaLibrarySortType.downloadTimeDesc;
+
   @override
   List<JHLifeCircleBean> get initDependencies => super.initDependencies..addAll([galleryDownloadService, archiveDownloadService, localConfigService]);
 
@@ -89,17 +94,60 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   }
 
   List<MangaLibraryItem> get filteredItems {
-    if (selectedTags.isEmpty) {
-      return items;
-    }
+    List<MangaLibraryItem> result = items.where((item) {
+      if (selectedType != null && item.type != selectedType) {
+        return false;
+      }
 
-    return items.where((item) {
-      return selectedTags.every((selectedTag) => item.tags.any((tag) => tag.namespace == selectedTag.namespace && tag.key == selectedTag.key));
+      if (selectedCategory != null && item.category != selectedCategory) {
+        return false;
+      }
+
+      if (selectedTags.isNotEmpty &&
+          !selectedTags.every((selectedTag) => item.tags.any((tag) => tag.namespace == selectedTag.namespace && tag.key == selectedTag.key))) {
+        return false;
+      }
+
+      String keyword = searchKeyword.trim().toLowerCase();
+      if (keyword.isNotEmpty && !_itemMatchesKeyword(item, keyword)) {
+        return false;
+      }
+
+      return true;
     }).toList();
+
+    _sortItems(result);
+    return result;
   }
+
+  List<String> get availableCategories {
+    return items.map((item) => item.category).toSet().toList()..sort();
+  }
+
+  bool get hasActiveFilters => searchKeyword.trim().isNotEmpty || selectedType != null || selectedCategory != null || selectedTags.isNotEmpty;
 
   MangaLibraryItem? findItem(String itemId) {
     return items.firstWhereOrNull((item) => item.id == itemId);
+  }
+
+  void setSearchKeyword(String keyword) {
+    searchKeyword = keyword.trim();
+    update([libraryChangedId]);
+  }
+
+  void setSelectedType(MangaLibraryItemType? type) {
+    selectedType = type;
+    update([libraryChangedId]);
+  }
+
+  void setSelectedCategory(String? category) {
+    selectedCategory = category;
+    update([libraryChangedId]);
+  }
+
+  void setSortType(MangaLibrarySortType type) {
+    sortType = type;
+    update([libraryChangedId]);
   }
 
   void toggleSelectedTag(TagData tagData) {
@@ -115,6 +163,45 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   void clearSelectedTags() {
     selectedTags.clear();
     update([libraryChangedId]);
+  }
+
+  void clearFilters() {
+    searchKeyword = '';
+    selectedType = null;
+    selectedCategory = null;
+    selectedTags.clear();
+    update([libraryChangedId]);
+  }
+
+  bool _itemMatchesKeyword(MangaLibraryItem item, String keyword) {
+    if (item.title.toLowerCase().contains(keyword) ||
+        item.gid.toString().contains(keyword) ||
+        item.token.toLowerCase().contains(keyword) ||
+        item.localPath.toLowerCase().contains(keyword) ||
+        (item.uploader?.toLowerCase().contains(keyword) ?? false)) {
+      return true;
+    }
+
+    return item.tags.any((tag) {
+      return tag.namespace.toLowerCase().contains(keyword) ||
+          tag.key.toLowerCase().contains(keyword) ||
+          (tag.translatedNamespace?.toLowerCase().contains(keyword) ?? false) ||
+          (tag.tagName?.toLowerCase().contains(keyword) ?? false);
+    });
+  }
+
+  void _sortItems(List<MangaLibraryItem> targetItems) {
+    switch (sortType) {
+      case MangaLibrarySortType.downloadTimeDesc:
+        targetItems.sort((a, b) => b.downloadTime.compareTo(a.downloadTime));
+        break;
+      case MangaLibrarySortType.titleAsc:
+        targetItems.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        break;
+      case MangaLibrarySortType.pageCountDesc:
+        targetItems.sort((a, b) => b.pageCount.compareTo(a.pageCount));
+        break;
+    }
   }
 
   List<MangaSimilarityGroup> get similarityGroups {

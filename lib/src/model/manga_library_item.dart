@@ -10,6 +10,12 @@ enum MangaLibraryItemType {
   const MangaLibraryItemType(this.code);
 }
 
+enum MangaLibrarySortType {
+  downloadTimeDesc,
+  titleAsc,
+  pageCountDesc,
+}
+
 class MangaLibraryItem {
   final MangaLibraryItemType type;
   final int gid;
