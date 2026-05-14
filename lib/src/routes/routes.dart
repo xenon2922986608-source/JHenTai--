@@ -10,6 +10,7 @@ import 'package:jhentai/src/pages/history/history_page.dart';
 import 'package:jhentai/src/pages/gallerys/simple/gallerys_page.dart';
 import 'package:jhentai/src/pages/layout/desktop/desktop_home_page.dart';
 import 'package:jhentai/src/pages/lock_page.dart';
+import 'package:jhentai/src/pages/manga_library/manga_similarity_page.dart';
 import 'package:jhentai/src/pages/popular/popular_page.dart';
 import 'package:jhentai/src/pages/ranklist/ranklist_page.dart';
 import 'package:jhentai/src/pages/read/read_page.dart';
@@ -88,6 +89,7 @@ class Routes {
   static const String webview = "/webview";
   static const String quickSearch = "/qucik_search";
   static const String imagePage = "/image_page";
+  static const String mangaSimilarity = "/manga_library/similarity";
 
   static const String settingPrefix = "/setting_";
   static const String settingAccount = "/setting_account";
@@ -249,6 +251,12 @@ class Routes {
       page: () => DownloadSearchPage(),
       transition: defaultTransition,
       side: Side.left,
+    ),
+    EHPage(
+      name: mangaSimilarity,
+      page: () => const MangaSimilarityPage(),
+      transition: defaultTransition,
+      side: Side.right,
     ),
     EHPage(
       name: singleImagePage,

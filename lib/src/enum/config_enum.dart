@@ -38,6 +38,7 @@ enum ConfigEnum {
   searchHistory('searchHistory'),
   myTagsSetting('MyTagsSetting'),
   builtInBlockedUser('builtInBlockedUser'),
+  mangaSimilarityIgnoredPair('mangaSimilarityIgnoredPair'),
 
   /// page config
   downloadPageBodyType('downloadPageGalleryType'),
