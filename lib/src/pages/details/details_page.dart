@@ -141,6 +141,14 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
                           children: [Text('delete'.tr), const Icon(Icons.delete)],
                         ),
                       ),
+                    if (containGallery || containArchive)
+                      PopupMenuItem(
+                        value: 6,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [Text('switchToMangaLibrary'.tr), const Icon(Icons.collections_bookmark)],
+                        ),
+                      ),
                     if (state.galleryDetails?.parentGalleryUrl != null || (state.galleryDetails?.childrenGallerys?.isNotEmpty ?? false))
                       PopupMenuItem(
                         value: 4,
@@ -181,6 +189,11 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
                   }
                   if (value == 5) {
                     logic.blockGallery();
+                  }
+                  if (value == 6) {
+                    // TODO: Scroll to the matching manga library item by gid/token after the library list exposes stable item positioning.
+                    downloadPageGalleryTypeNotifier.value = DownloadPageGalleryType.library;
+                    toRoute(Routes.download);
                   }
                 },
               );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jhentai/src/pages/download/download_page_switch_button.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
@@ -78,6 +79,7 @@ class GalleryListDownloadPage extends StatelessWidget with Scroll2TopPageMixin, 
       titleSpacing: 0,
       title: const DownloadPageSegmentControl(galleryType: DownloadPageGalleryType.download),
       actions: [
+        const DownloadPageSwitchButton(targetGalleryType: DownloadPageGalleryType.library),
         PopupMenuButton(
           itemBuilder: (context) {
             return [
