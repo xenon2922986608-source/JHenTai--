@@ -1,6 +1,5 @@
 import 'package:jhentai/src/database/database.dart';
-
-import 'gallery_image.dart';
+import 'package:jhentai/src/model/gallery_image.dart';
 
 enum MangaLibraryItemType {
   gallery('gallery'),
@@ -9,10 +8,6 @@ enum MangaLibraryItemType {
   final String code;
 
   const MangaLibraryItemType(this.code);
-
-  static MangaLibraryItemType fromCode(String code) {
-    return MangaLibraryItemType.values.firstWhere((type) => type.code == code);
-  }
 }
 
 class MangaLibraryItem {
@@ -28,7 +23,6 @@ class MangaLibraryItem {
   final String downloadTime;
   final String localPath;
   final GalleryImage cover;
-  final double? userRating;
   final bool isOriginal;
 
   const MangaLibraryItem({
@@ -44,30 +38,27 @@ class MangaLibraryItem {
     required this.downloadTime,
     required this.localPath,
     required this.cover,
-    required this.userRating,
     this.isOriginal = false,
   });
 
-  String get userDataType => type.code;
-
   String get id => '${type.code}:$gid';
+}
 
-  MangaLibraryItem copyWith({double? userRating}) {
-    return MangaLibraryItem(
-      type: type,
-      gid: gid,
-      token: token,
-      title: title,
-      category: category,
-      pageCount: pageCount,
-      galleryUrl: galleryUrl,
-      uploader: uploader,
-      tags: tags,
-      downloadTime: downloadTime,
-      localPath: localPath,
-      cover: cover,
-      userRating: userRating ?? this.userRating,
-      isOriginal: isOriginal,
-    );
+class MangaSimilarityGroup {
+  final MangaLibraryItem first;
+  final MangaLibraryItem second;
+  final double score;
+  final List<String> reasons;
+
+  const MangaSimilarityGroup({
+    required this.first,
+    required this.second,
+    required this.score,
+    required this.reasons,
+  });
+
+  String get pairKey {
+    List<String> ids = [first.id, second.id]..sort();
+    return ids.join('|');
   }
 }
