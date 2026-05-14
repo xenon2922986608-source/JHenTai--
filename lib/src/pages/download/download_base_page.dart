@@ -37,6 +37,9 @@ class _DownloadPageState extends State<DownloadPage> {
     super.initState();
 
     downloadPageGalleryTypeNotifier.addListener(_handleRequestedGalleryType);
+    if (downloadPageGalleryTypeNotifier.value != null) {
+      galleryType = _normalizeVisibleGalleryType(downloadPageGalleryTypeNotifier.value!);
+    }
 
     localConfigService.read(configKey: ConfigEnum.downloadPageBodyType).then((bodyTypeString) {
       if (bodyTypeString != null) {
@@ -135,12 +138,6 @@ class DownloadPageSegmentControl extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-        ),
-        DownloadPageGalleryType.library: Text(
-          'mangaLibrary'.tr,
-          style: const TextStyle(fontSize: UIConfig.downloadPageSegmentedTextSize, fontWeight: FontWeight.bold),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
         DownloadPageGalleryType.library: Text(
           'mangaLibrary'.tr,

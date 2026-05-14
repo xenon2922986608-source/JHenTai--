@@ -35,6 +35,11 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   MangaLibraryDisplayMode displayMode = MangaLibraryDisplayMode.compact;
   final Map<String, TagData> _tagTranslationMap = {};
 
+  MangaLibraryFocusRequest? _pendingLibraryFocusRequest;
+  MangaLibraryFocusRequest? _pendingDownloadFocusRequest;
+  String? highlightedLibraryItemKey;
+  String? highlightedDownloadItemKey;
+
   @override
   List<JHLifeCircleBean> get initDependencies => super.initDependencies..addAll([galleryDownloadService, archiveDownloadService, localConfigService]);
 
@@ -161,6 +166,64 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
     return items.firstWhereOrNull((item) => item.id == itemId);
   }
 
+  MangaLibraryItem? findItemByIdentity({required MangaLibraryItemType type, required int gid, String? token}) {
+    String key = MangaLibraryItem.buildStableKey(type: type, gid: gid, token: token);
+    MangaLibraryItem? exact = items.firstWhereOrNull((item) => item.stableKey == key);
+    if (exact != null) {
+      return exact;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      return items.firstWhereOrNull((item) => item.type == type && item.gid == gid);
+    }
+
+    return null;
+  }
+
+  void requestFocusInLibrary({required MangaLibraryItemType type, required int gid, String? token, bool openDetail = true}) {
+    _pendingLibraryFocusRequest = MangaLibraryFocusRequest(type: type, gid: gid, token: token, openDetail: openDetail);
+    clearFilters();
+  }
+
+  MangaLibraryFocusRequest? consumePendingLibraryFocusRequest() {
+    MangaLibraryFocusRequest? request = _pendingLibraryFocusRequest;
+    _pendingLibraryFocusRequest = null;
+    return request;
+  }
+
+  void requestFocusInDownload(MangaLibraryItem item) {
+    _pendingDownloadFocusRequest = MangaLibraryFocusRequest(type: item.type, gid: item.gid, token: item.token);
+    update([libraryChangedId]);
+  }
+
+  MangaLibraryFocusRequest? consumePendingDownloadFocusRequest() {
+    MangaLibraryFocusRequest? request = _pendingDownloadFocusRequest;
+    _pendingDownloadFocusRequest = null;
+    return request;
+  }
+
+  void highlightLibraryItem(String stableKey) {
+    highlightedLibraryItemKey = stableKey;
+    update([libraryChangedId]);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (highlightedLibraryItemKey == stableKey) {
+        highlightedLibraryItemKey = null;
+        update([libraryChangedId]);
+      }
+    });
+  }
+
+  void highlightDownloadItem(String stableKey) {
+    highlightedDownloadItemKey = stableKey;
+    update([libraryChangedId]);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (highlightedDownloadItemKey == stableKey) {
+        highlightedDownloadItemKey = null;
+        update([libraryChangedId]);
+      }
+    });
+  }
+
   void setSearchKeyword(String keyword) {
     searchKeyword = keyword.trim();
     update([libraryChangedId]);
@@ -190,7 +253,7 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   void toggleSelectedTag(TagData tagData) {
     int index = selectedTags.indexWhere((tag) => tag.namespace == tagData.namespace && tag.key == tagData.key);
     if (index == -1) {
-      selectedTags.add(tagData);
+      selectedTags.add(TagData(namespace: tagData.namespace, key: tagData.key));
     } else {
       selectedTags.removeAt(index);
     }

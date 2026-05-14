@@ -4,14 +4,14 @@ import 'package:jhentai/src/database/database.dart';
 import 'package:jhentai/src/extension/widget_extension.dart';
 import 'package:jhentai/src/model/manga_library_item.dart';
 import 'package:jhentai/src/pages/download/download_base_page.dart';
-import 'package:jhentai/src/pages/download/download_page_switch_button.dart';
-import 'package:jhentai/src/pages/manga_library/manga_library_tag_chip.dart';
+import 'package:jhentai/src/pages/manga_library/manga_library_tag_groups.dart';
 import 'package:jhentai/src/routes/routes.dart';
 import 'package:jhentai/src/service/archive_download_service.dart';
 import 'package:jhentai/src/service/gallery_download_service.dart';
 import 'package:jhentai/src/service/manga_library_service.dart';
 import 'package:jhentai/src/utils/manga_library_tag_util.dart';
 import 'package:jhentai/src/utils/route_util.dart';
+import 'package:jhentai/src/utils/toast_util.dart';
 import 'package:jhentai/src/widget/eh_alert_dialog.dart';
 import 'package:jhentai/src/widget/eh_gallery_category_tag.dart';
 import 'package:jhentai/src/widget/eh_image.dart';
@@ -30,7 +30,6 @@ class MangaLibraryPage extends StatelessWidget {
         titleSpacing: 0,
         title: const DownloadPageSegmentControl(galleryType: DownloadPageGalleryType.library),
         actions: [
-          const DownloadPageSwitchButton(targetGalleryType: DownloadPageGalleryType.download),
           GetBuilder<MangaLibraryService>(
             id: MangaLibraryService.libraryChangedId,
             builder: (_) {
@@ -86,6 +85,7 @@ class MangaLibraryPage extends StatelessWidget {
 
   Widget _buildBody(BuildContext context) {
     List<MangaLibraryItem> items = mangaLibraryService.filteredItems;
+    _handlePendingLibraryFocus(items);
 
     return Column(
       children: [
@@ -124,6 +124,36 @@ class MangaLibraryPage extends StatelessWidget {
         itemCount: items.length,
       ),
     );
+  }
+
+  void _handlePendingLibraryFocus(List<MangaLibraryItem> items) {
+    MangaLibraryFocusRequest? request = mangaLibraryService.consumePendingLibraryFocusRequest();
+    if (request == null) {
+      return;
+    }
+
+    Get.engine.addPostFrameCallback((_) {
+      MangaLibraryItem? item = mangaLibraryService.findItemByIdentity(type: request.type, gid: request.gid, token: request.token);
+      if (item == null) {
+        toast('mangaLibraryItemNotFound'.tr);
+        return;
+      }
+
+      int index = items.indexWhere((candidate) => candidate.stableKey == item.stableKey);
+      if (index >= 0 && scrollController.hasClients) {
+        double offset = mangaLibraryService.displayMode == MangaLibraryDisplayMode.cover ? (index ~/ 2) * 250 : index * 156;
+        scrollController.animateTo(
+          offset.clamp(0, scrollController.position.maxScrollExtent).toDouble(),
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOut,
+        );
+      }
+
+      mangaLibraryService.highlightLibraryItem(item.stableKey);
+      if (request.openDetail) {
+        toRoute(Routes.mangaLibraryDetail, arguments: item, preventDuplicates: false);
+      }
+    });
   }
 
   Widget _buildLibraryToolbar(int filteredCount) {
@@ -244,7 +274,7 @@ class MangaLibraryPage extends StatelessWidget {
             ),
           ...mangaLibraryService.selectedTags.map(
             (tag) => InputChip(
-              label: Text(mangaLibraryTagText(tag)),
+              label: Text(mangaLibraryTagText(mangaLibraryService.resolveTagTranslation(tag))),
               onDeleted: () => mangaLibraryService.toggleSelectedTag(tag),
             ),
           ),
@@ -324,7 +354,10 @@ class _MangaLibraryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    bool isHighlighted = mangaLibraryService.highlightedLibraryItemKey == item.stableKey;
     return Card(
+      color: isHighlighted ? Theme.of(context).colorScheme.primaryContainer : null,
+      shape: isHighlighted ? RoundedRectangleBorder(side: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2), borderRadius: BorderRadius.circular(12)) : null,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => toRoute(Routes.mangaLibraryDetail, arguments: item, preventDuplicates: false),
@@ -409,7 +442,9 @@ class _MangaLibraryCard extends StatelessWidget {
                   Text('${'userRating'.tr}: -', maxLines: 1, overflow: TextOverflow.ellipsis),
                 ],
                 const SizedBox(height: 4),
-                _TagPreview(tags: item.tags, maxCount: isDetailMode ? 24 : 8),
+                isDetailMode
+                    ? MangaLibraryTagGroups(tags: item.tags, onTapTag: mangaLibraryService.toggleSelectedTag, maxGroups: 5, maxTagsPerGroup: 8, dense: true)
+                    : MangaLibraryTagGroups(tags: item.tags, onTapTag: mangaLibraryService.toggleSelectedTag, maxGroups: 3, maxTagsPerGroup: 4, dense: true),
               ],
             ),
           ),
@@ -430,26 +465,5 @@ class _MangaLibraryCard extends StatelessWidget {
     if (result == true) {
       await mangaLibraryService.deleteItem(item);
     }
-  }
-}
-
-class _TagPreview extends StatelessWidget {
-  final List<TagData> tags;
-  final int maxCount;
-
-  const _TagPreview({required this.tags, required this.maxCount});
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 4,
-      runSpacing: 2,
-      children: tags.take(maxCount).map((tag) {
-        return InkWell(
-          onTap: () => mangaLibraryService.toggleSelectedTag(tag),
-          child: MangaLibraryTagChip(tag: tag),
-        );
-      }).toList(),
-    );
   }
 }

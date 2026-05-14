@@ -76,6 +76,10 @@ class zh_CN {
       'mangaLibraryDetailMode': '详细模式',
       'switchToMangaLibrary': '切换到漫画库',
       'switchToDownload': '切换到下载',
+      'switchToThisMangaInDownload': '切换到下载中的此漫画',
+      'switchToThisMangaInLibrary': '切换到漫画库中的此漫画',
+      'archiveItemNoVisibleDownloadEntry': '该条目是归档项目，当前归档入口已隐藏，无法跳转到可见下载条目。',
+      'downloadItemNotFound': '未在下载中找到该条目',
 
       /// unlock page
       'localizedReason': '请验证以继续',

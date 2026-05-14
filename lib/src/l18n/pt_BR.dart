@@ -76,6 +76,10 @@ class pt_BR {
       'mangaLibraryDetailMode': 'Modo detalhado',
       'switchToMangaLibrary': 'Ir para biblioteca',
       'switchToDownload': 'Ir para downloads',
+      'switchToThisMangaInDownload': 'Ir para este mangá em Downloads',
+      'switchToThisMangaInLibrary': 'Ir para este mangá na biblioteca',
+      'archiveItemNoVisibleDownloadEntry': 'Este item é um arquivo. A aba Arquivo está oculta, então não há uma entrada visível em Downloads.',
+      'downloadItemNotFound': 'Item de download não encontrado',
 
       /// schedule
       'dawnOfaNewDay': 'It is the dawn of a new day!',

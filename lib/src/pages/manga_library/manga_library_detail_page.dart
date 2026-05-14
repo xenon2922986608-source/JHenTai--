@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:jhentai/src/database/database.dart';
+import 'package:jhentai/src/model/gallery_url.dart';
 import 'package:jhentai/src/model/manga_library_item.dart';
 import 'package:jhentai/src/pages/download/download_base_page.dart';
-import 'package:jhentai/src/pages/download/download_page_switch_button.dart';
-import 'package:jhentai/src/pages/manga_library/manga_library_tag_chip.dart';
+import 'package:jhentai/src/pages/details/details_page_logic.dart';
+import 'package:jhentai/src/pages/manga_library/manga_library_tag_groups.dart';
 import 'package:jhentai/src/routes/routes.dart';
 import 'package:jhentai/src/service/manga_library_service.dart';
 import 'package:jhentai/src/utils/route_util.dart';
+import 'package:jhentai/src/utils/toast_util.dart';
 import 'package:jhentai/src/widget/eh_alert_dialog.dart';
 import 'package:jhentai/src/widget/eh_gallery_category_tag.dart';
 import 'package:jhentai/src/widget/eh_image.dart';
@@ -24,7 +26,16 @@ class MangaLibraryDetailPage extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('mangaLibraryDetail'.tr), actions: const [DownloadPageSwitchButton(targetGalleryType: DownloadPageGalleryType.download)]),
+      appBar: AppBar(
+        title: Text('mangaLibraryDetail'.tr),
+        actions: [
+          IconButton(
+            tooltip: 'switchToThisMangaInDownload'.tr,
+            icon: const Icon(Icons.download),
+            onPressed: () => _switchToDownload(arguments),
+          ),
+        ],
+      ),
       body: GetBuilder<MangaLibraryService>(
         id: MangaLibraryService.libraryChangedId,
         builder: (_) {
@@ -36,6 +47,23 @@ class MangaLibraryDetailPage extends StatelessWidget {
           return _MangaLibraryDetailBody(item: item);
         },
       ),
+    );
+  }
+
+  void _switchToDownload(MangaLibraryItem item) {
+    if (item.type == MangaLibraryItemType.archive) {
+      toast('archiveItemNoVisibleDownloadEntry'.tr, isShort: false);
+      return;
+    }
+
+    mangaLibraryService.requestFocusInDownload(item);
+    downloadPageGalleryTypeNotifier.value = null;
+    downloadPageGalleryTypeNotifier.value = DownloadPageGalleryType.download;
+    toRoute(Routes.download);
+    toRoute(
+      Routes.details,
+      arguments: DetailsPageArgument(galleryUrl: GalleryUrl.parse(item.galleryUrl)),
+      preventDuplicates: false,
     );
   }
 }
@@ -148,7 +176,7 @@ class _MangaLibraryDetailBody extends StatelessWidget {
           const SizedBox(height: 12),
           Text('tags'.tr, style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          _TagList(tags: item.tags),
+          MangaLibraryTagGroups(tags: item.tags, onTapTag: mangaLibraryService.toggleSelectedTag),
         ],
       ),
     );
@@ -181,30 +209,6 @@ class _InfoRow extends StatelessWidget {
           Expanded(child: SelectableText(value)),
         ],
       ),
-    );
-  }
-}
-
-class _TagList extends StatelessWidget {
-  final List<TagData> tags;
-
-  const _TagList({required this.tags});
-
-  @override
-  Widget build(BuildContext context) {
-    if (tags.isEmpty) {
-      return Text('noData'.tr);
-    }
-
-    return Wrap(
-      spacing: 6,
-      runSpacing: 4,
-      children: tags.map((tag) {
-        return MangaLibraryTagChip(
-          tag: tag,
-          onTap: mangaLibraryService.toggleSelectedTag,
-        );
-      }).toList(),
     );
   }
 }

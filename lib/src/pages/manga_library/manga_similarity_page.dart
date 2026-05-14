@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:jhentai/src/model/manga_library_item.dart';
+import 'package:jhentai/src/pages/manga_library/manga_library_tag_groups.dart';
 import 'package:jhentai/src/service/manga_library_service.dart';
 import 'package:jhentai/src/widget/eh_alert_dialog.dart';
 import 'package:jhentai/src/widget/eh_image.dart';
@@ -85,6 +86,7 @@ class _SimilarityItem extends StatelessWidget {
               Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
               Text('${'pageCount'.tr}: ${item.pageCount}'),
               Text(item.type == MangaLibraryItemType.gallery ? 'gallery'.tr : 'archive'.tr),
+              MangaLibraryTagGroups(tags: item.tags, onTapTag: mangaLibraryService.toggleSelectedTag, maxGroups: 3, maxTagsPerGroup: 3, dense: true),
               Wrap(
                 spacing: 8,
                 children: [

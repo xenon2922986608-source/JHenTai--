@@ -76,6 +76,10 @@ class ru_RU {
       'mangaLibraryDetailMode': 'Detail Mode',
       'switchToMangaLibrary': 'Switch to Manga Library',
       'switchToDownload': 'Switch to Download',
+      'switchToThisMangaInDownload': 'Switch to this manga in Download',
+      'switchToThisMangaInLibrary': 'Switch to this manga in Manga Library',
+      'archiveItemNoVisibleDownloadEntry': 'This item is an archive. The Archive tab is hidden, so there is no visible Download entry to jump to.',
+      'downloadItemNotFound': 'Download item not found',
 
       /// schedule
       'dawnOfaNewDay': 'Наступил рассвет нового дня!',

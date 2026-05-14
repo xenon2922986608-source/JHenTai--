@@ -54,6 +54,24 @@ class MangaLibraryItem {
   });
 
   String get id => '${type.code}:$gid';
+
+  String get stableKey => MangaLibraryItem.buildStableKey(type: type, gid: gid, token: token);
+
+  static String buildStableKey({required MangaLibraryItemType type, required int gid, String? token}) {
+    String normalizedToken = token?.trim() ?? '';
+    return normalizedToken.isEmpty ? '${type.code}:$gid' : '${type.code}:$gid:$normalizedToken';
+  }
+}
+
+class MangaLibraryFocusRequest {
+  final MangaLibraryItemType type;
+  final int gid;
+  final String? token;
+  final bool openDetail;
+
+  const MangaLibraryFocusRequest({required this.type, required this.gid, this.token, this.openDetail = false});
+
+  String get stableKey => MangaLibraryItem.buildStableKey(type: type, gid: gid, token: token);
 }
 
 class MangaSimilarityGroup {

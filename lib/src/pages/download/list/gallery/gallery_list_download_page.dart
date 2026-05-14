@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:jhentai/src/pages/download/download_page_switch_button.dart';
+import 'package:jhentai/src/model/manga_library_item.dart';
+import 'package:jhentai/src/service/manga_library_service.dart';
+import 'package:jhentai/src/utils/toast_util.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
@@ -151,24 +154,66 @@ class GalleryListDownloadPage extends StatelessWidget with Scroll2TopPageMixin, 
           onNotification: logic.onUserScroll,
           child: FutureBuilder(
             future: state.displayGroupsCompleter.future,
-            builder: (_, __) => !state.displayGroupsCompleter.isCompleted
-                ? const Center()
-                : GroupedList<String, GalleryDownloadedData>(
-                    maxGalleryNum4Animation: performanceSetting.maxGalleryNum4Animation.value,
-                    scrollController: state.scrollController,
-                    controller: state.groupedListController,
-                    groups: Map.fromEntries(logic.downloadService.allGroups.map((e) => MapEntry(e, state.displayGroups.contains(e)))),
-                    elements: logic.downloadService.gallerys,
-                    elementGroup: (GalleryDownloadedData gallery) => logic.downloadService.galleryDownloadInfos[gallery.gid]!.group,
-                    groupBuilder: (context, groupName, isOpen) => _groupBuilder(context, groupName, isOpen).marginAll(5),
-                    elementBuilder: (BuildContext context, String group, GalleryDownloadedData gallery, isOpen) => _itemBuilder(context, gallery),
-                    groupUniqueKey: (String group) => group,
-                    elementUniqueKey: (GalleryDownloadedData gallery) => gallery.gid.toString(),
-                  ),
+            builder: (_, __) {
+              if (!state.displayGroupsCompleter.isCompleted) {
+                return const Center();
+              }
+
+              _handlePendingDownloadFocus();
+              return GroupedList<String, GalleryDownloadedData>(
+                maxGalleryNum4Animation: performanceSetting.maxGalleryNum4Animation.value,
+                scrollController: state.scrollController,
+                controller: state.groupedListController,
+                groups: Map.fromEntries(logic.downloadService.allGroups.map((e) => MapEntry(e, state.displayGroups.contains(e)))),
+                elements: logic.downloadService.gallerys,
+                elementGroup: (GalleryDownloadedData gallery) => logic.downloadService.galleryDownloadInfos[gallery.gid]!.group,
+                groupBuilder: (context, groupName, isOpen) => _groupBuilder(context, groupName, isOpen).marginAll(5),
+                elementBuilder: (BuildContext context, String group, GalleryDownloadedData gallery, isOpen) => _itemBuilder(context, gallery),
+                groupUniqueKey: (String group) => group,
+                elementUniqueKey: (GalleryDownloadedData gallery) => gallery.gid.toString(),
+              );
+            },
           ),
         ),
       ),
     );
+  }
+
+
+  void _handlePendingDownloadFocus() {
+    MangaLibraryFocusRequest? request = mangaLibraryService.consumePendingDownloadFocusRequest();
+    if (request == null) {
+      return;
+    }
+    if (request.type != MangaLibraryItemType.gallery) {
+      toast('archiveItemNoVisibleDownloadEntry'.tr, isShort: false);
+      return;
+    }
+
+    int index = logic.downloadService.gallerys.indexWhere((gallery) => gallery.gid == request.gid && (request.token?.isEmpty ?? true || gallery.token == request.token));
+    if (index == -1) {
+      toast('downloadItemNotFound'.tr);
+      return;
+    }
+
+    GalleryDownloadedData gallery = logic.downloadService.gallerys[index];
+    String group = logic.downloadService.galleryDownloadInfos[gallery.gid]!.group;
+
+    Get.engine.addPostFrameCallback((_) {
+      state.displayGroups.add(group);
+      logic.update([logic.bodyId]);
+      Get.engine.addPostFrameCallback((_) {
+        if (state.scrollController.hasClients) {
+          double offset = index * (UIConfig.downloadPageCardHeight + 10);
+          state.scrollController.animateTo(
+            offset.clamp(0, state.scrollController.position.maxScrollExtent).toDouble(),
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOut,
+          );
+        }
+        mangaLibraryService.highlightDownloadItem(MangaLibraryItem.buildStableKey(type: MangaLibraryItemType.gallery, gid: gallery.gid, token: gallery.token));
+      });
+    });
   }
 
   Widget _groupBuilder(BuildContext context, String groupName, bool isOpen) {
@@ -237,22 +282,29 @@ class GalleryListDownloadPage extends StatelessWidget with Scroll2TopPageMixin, 
   }
 
   Widget _buildCard(BuildContext context, GalleryDownloadedData gallery) {
-    return GetBuilder<GalleryListDownloadPageLogic>(
-      id: '${logic.itemCardId}::${gallery.gid}',
-      builder: (_) => Container(
-        height: UIConfig.downloadPageCardHeight,
-        decoration: state.selectedGids.contains(gallery.gid)
-            ? BoxDecoration(
-                color: UIConfig.downloadPageCardSelectedColor(context),
-                borderRadius: BorderRadius.circular(UIConfig.downloadPageCardBorderRadius),
-              )
-            : null,
-        child: Row(
-          children: [
-            _buildCover(context, gallery),
-            _buildInfo(context, gallery),
-          ],
-        ),
+    return GetBuilder<MangaLibraryService>(
+      id: MangaLibraryService.libraryChangedId,
+      builder: (_) => GetBuilder<GalleryListDownloadPageLogic>(
+        id: '${logic.itemCardId}::${gallery.gid}',
+        builder: (_) {
+          bool isHighlighted = mangaLibraryService.highlightedDownloadItemKey == MangaLibraryItem.buildStableKey(type: MangaLibraryItemType.gallery, gid: gallery.gid, token: gallery.token);
+          return Container(
+            height: UIConfig.downloadPageCardHeight,
+            decoration: state.selectedGids.contains(gallery.gid) || isHighlighted
+                ? BoxDecoration(
+                    color: isHighlighted ? Theme.of(context).colorScheme.primaryContainer : UIConfig.downloadPageCardSelectedColor(context),
+                    borderRadius: BorderRadius.circular(UIConfig.downloadPageCardBorderRadius),
+                    border: isHighlighted ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2) : null,
+                  )
+                : null,
+            child: Row(
+              children: [
+                _buildCover(context, gallery),
+                _buildInfo(context, gallery),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

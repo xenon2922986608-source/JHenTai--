@@ -76,6 +76,10 @@ class zh_TW {
       'mangaLibraryDetailMode': '詳細模式',
       'switchToMangaLibrary': '切換到漫畫庫',
       'switchToDownload': '切換到下載',
+      'switchToThisMangaInDownload': '切換到下載中的此漫畫',
+      'switchToThisMangaInLibrary': '切換到漫畫庫中的此漫畫',
+      'archiveItemNoVisibleDownloadEntry': '該項目是歸檔項目，目前歸檔入口已隱藏，無法跳轉到可見下載項目。',
+      'downloadItemNotFound': '未在下載中找到該項目',
 
       /// unlock page
       'localizedReason': '請驗證以繼續',
