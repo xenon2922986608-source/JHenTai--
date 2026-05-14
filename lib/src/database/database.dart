@@ -21,6 +21,7 @@ import 'package:jhentai/src/database/table/gallery_group.dart';
 import 'package:jhentai/src/database/table/gallery_history.dart';
 import 'package:jhentai/src/database/table/image.dart';
 import 'package:jhentai/src/database/table/local_config.dart';
+import 'package:jhentai/src/database/table/manga_library_user_data.dart';
 import 'package:jhentai/src/database/table/super_resolution_info.dart';
 import 'package:jhentai/src/database/table/tag.dart';
 import 'package:jhentai/src/database/table/tag_count.dart';
@@ -61,13 +62,14 @@ part 'database.g.dart';
     DioCache,
     BlockRule,
     LocalConfig,
+    MangaLibraryUserData,
   ],
 )
 class AppDb extends _$AppDb {
   AppDb() : super(_openConnection());
 
   @override
-  int get schemaVersion => 23;
+  int get schemaVersion => 24;
 
   @override
   MigrationStrategy get migration {
@@ -161,6 +163,10 @@ class AppDb extends _$AppDb {
             }
             if (17 <= from && from < 23) {
               await m.alterTable(TableMigration(archiveDownloaded, newColumns: [archiveDownloaded.parseSource]));
+            }
+            if (from < 24) {
+              await m.createTable(mangaLibraryUserData);
+              await m.createIndex(mluIdxUpdatedAt).ignoreDuplicateIndex();
             }
           });
         } on Exception catch (e) {
