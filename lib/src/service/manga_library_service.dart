@@ -6,11 +6,16 @@ import 'package:jhentai/src/database/database.dart';
 import 'package:jhentai/src/enum/config_enum.dart';
 import 'package:jhentai/src/model/gallery_image.dart';
 import 'package:jhentai/src/model/manga_library_item.dart';
+import 'package:jhentai/src/model/read_page_info.dart';
+import 'package:jhentai/src/routes/routes.dart';
 import 'package:jhentai/src/service/archive_download_service.dart';
 import 'package:jhentai/src/service/gallery_download_service.dart';
 import 'package:jhentai/src/service/jh_service.dart';
 import 'package:jhentai/src/service/local_config_service.dart';
+import 'package:jhentai/src/service/read_progress_service.dart';
+import 'package:jhentai/src/service/super_resolution_service.dart';
 import 'package:jhentai/src/utils/convert_util.dart';
+import 'package:jhentai/src/utils/route_util.dart';
 
 MangaLibraryService mangaLibraryService = MangaLibraryService();
 
@@ -93,6 +98,10 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
     }).toList();
   }
 
+  MangaLibraryItem? findItem(String itemId) {
+    return items.firstWhereOrNull((item) => item.id == itemId);
+  }
+
   void toggleSelectedTag(TagData tagData) {
     int index = selectedTags.indexWhere((tag) => tag.namespace == tagData.namespace && tag.key == tagData.key);
     if (index == -1) {
@@ -138,6 +147,45 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
       await archiveDownloadService.deleteArchive(item.gid);
     }
     update([libraryChangedId, similarityChangedId]);
+  }
+
+  Future<void> openReader(MangaLibraryItem item) async {
+    int readIndexRecord = await readProgressService.getReadProgress(item.gid);
+
+    if (item.type == MangaLibraryItemType.gallery) {
+      toRoute(
+        Routes.read,
+        arguments: ReadPageInfo(
+          mode: ReadMode.downloaded,
+          gid: item.gid,
+          token: item.token,
+          galleryTitle: item.title,
+          galleryUrl: item.galleryUrl,
+          initialIndex: readIndexRecord,
+          readProgressRecordStorageKey: item.gid.toString(),
+          pageCount: item.pageCount,
+          useSuperResolution: superResolutionService.get(item.gid, SuperResolutionType.gallery) != null,
+        ),
+      );
+      return;
+    }
+
+    final images = await archiveDownloadService.getUnpackedImages(item.gid);
+    toRoute(
+      Routes.read,
+      arguments: ReadPageInfo(
+        mode: ReadMode.archive,
+        gid: item.gid,
+        galleryTitle: item.title,
+        galleryUrl: item.galleryUrl,
+        initialIndex: readIndexRecord,
+        pageCount: images.length,
+        isOriginal: item.isOriginal,
+        readProgressRecordStorageKey: item.gid.toString(),
+        images: images,
+        useSuperResolution: superResolutionService.get(item.gid, SuperResolutionType.archive) != null,
+      ),
+    );
   }
 
   MangaSimilarityGroup? _compare(MangaLibraryItem first, MangaLibraryItem second) {

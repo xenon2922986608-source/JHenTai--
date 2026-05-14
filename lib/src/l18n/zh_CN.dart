@@ -51,6 +51,11 @@ class zh_CN {
       'sameCategory': '分类一致',
       'pageCountClose': '页数接近',
       'ignoreThisSimilarity': '忽略本次提醒',
+      'mangaLibraryDetail': '漫画库详情',
+      'invalidMangaLibraryItem': '无效的漫画库条目',
+      'mangaLibraryItemNotFound': '漫画库条目不存在',
+      'userRating': '用户评分',
+      'tags': '标签',
 
       /// unlock page
       'localizedReason': '请验证以继续',

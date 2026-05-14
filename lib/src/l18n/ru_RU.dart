@@ -51,6 +51,11 @@ class ru_RU {
       'sameCategory': 'Same category',
       'pageCountClose': 'Close page count',
       'ignoreThisSimilarity': 'Ignore this reminder',
+      'mangaLibraryDetail': 'Manga Library Detail',
+      'invalidMangaLibraryItem': 'Invalid manga library item',
+      'mangaLibraryItemNotFound': 'Manga library item not found',
+      'userRating': 'User Rating',
+      'tags': 'Tags',
 
       /// schedule
       'dawnOfaNewDay': 'Наступил рассвет нового дня!',

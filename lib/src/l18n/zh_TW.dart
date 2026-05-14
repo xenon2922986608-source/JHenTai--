@@ -51,6 +51,11 @@ class zh_TW {
       'sameCategory': '分類一致',
       'pageCountClose': '頁數接近',
       'ignoreThisSimilarity': '忽略本次提醒',
+      'mangaLibraryDetail': '漫畫庫詳情',
+      'invalidMangaLibraryItem': '無效的漫畫庫項目',
+      'mangaLibraryItemNotFound': '漫畫庫項目不存在',
+      'userRating': '使用者評分',
+      'tags': '標籤',
 
       /// unlock page
       'localizedReason': '請驗證以繼續',

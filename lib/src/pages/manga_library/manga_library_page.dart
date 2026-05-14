@@ -121,38 +121,48 @@ class _MangaLibraryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            EHImage(galleryImage: item.cover, containerWidth: 90, containerHeight: 128, fit: BoxFit.cover),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => toRoute(Routes.mangaLibraryDetail, arguments: item, preventDuplicates: false),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              EHImage(galleryImage: item.cover, containerWidth: 90, containerHeight: 128, fit: BoxFit.cover),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        EHGalleryCategoryTag(category: item.category, height: 20, textStyle: const TextStyle(height: 1, fontSize: 12, color: Colors.white)),
+                        Text(item.type == MangaLibraryItemType.gallery ? 'gallery'.tr : 'archive'.tr),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text('${'pageCount'.tr}: ${item.pageCount}  ${'uploader'.tr}: ${item.uploader ?? '-'}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text('${'downloadTime'.tr}: ${item.downloadTime}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text('${'localPath'.tr}: ${item.localPath}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 4),
+                    _TagPreview(tags: item.tags),
+                  ],
+                ),
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      EHGalleryCategoryTag(category: item.category, height: 20, textStyle: const TextStyle(height: 1, fontSize: 12, color: Colors.white)),
-                      Text(item.type == MangaLibraryItemType.gallery ? 'gallery'.tr : 'archive'.tr),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text('${'pageCount'.tr}: ${item.pageCount}  ${'uploader'.tr}: ${item.uploader ?? '-'}', maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text('${'downloadTime'.tr}: ${item.downloadTime}', maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text('${'localPath'.tr}: ${item.localPath}', maxLines: 1, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
-                  _TagPreview(tags: item.tags),
+                  IconButton(icon: const Icon(Icons.menu_book), onPressed: () => mangaLibraryService.openReader(item)),
+                  IconButton(icon: const Icon(Icons.delete), onPressed: () => _confirmDelete(context, item)),
                 ],
               ),
-            ),
-            IconButton(icon: const Icon(Icons.delete), onPressed: () => _confirmDelete(context, item)),
-          ],
+            ],
+          ),
         ),
       ),
     );

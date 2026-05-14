@@ -51,6 +51,11 @@ class pt_BR {
       'sameCategory': 'Mesma categoria',
       'pageCountClose': 'Páginas próximas',
       'ignoreThisSimilarity': 'Ignorar este aviso',
+      'mangaLibraryDetail': 'Detalhes da biblioteca',
+      'invalidMangaLibraryItem': 'Item inválido da biblioteca',
+      'mangaLibraryItemNotFound': 'Item da biblioteca não encontrado',
+      'userRating': 'Avaliação do usuário',
+      'tags': 'Tags',
 
       /// schedule
       'dawnOfaNewDay': 'It is the dawn of a new day!',
