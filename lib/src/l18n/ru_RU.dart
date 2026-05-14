@@ -69,6 +69,13 @@ class ru_RU {
       'sortDownloadTimeDesc': 'Newest download first',
       'sortTitleAsc': 'Title A-Z',
       'sortPageCountDesc': 'Most pages first',
+      'noMangaLibrarySearchResult': 'No matching manga',
+      'displayMode': 'Display Mode',
+      'mangaLibraryCoverMode': 'Cover Mode',
+      'mangaLibraryCompactMode': 'Compact Mode',
+      'mangaLibraryDetailMode': 'Detail Mode',
+      'switchToMangaLibrary': 'Switch to Manga Library',
+      'switchToDownload': 'Switch to Download',
 
       /// schedule
       'dawnOfaNewDay': 'Наступил рассвет нового дня!',

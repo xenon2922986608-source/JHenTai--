@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:jhentai/src/database/database.dart';
 import 'package:jhentai/src/model/manga_library_item.dart';
+import 'package:jhentai/src/pages/download/download_base_page.dart';
+import 'package:jhentai/src/pages/download/download_page_switch_button.dart';
+import 'package:jhentai/src/pages/manga_library/manga_library_tag_chip.dart';
 import 'package:jhentai/src/routes/routes.dart';
 import 'package:jhentai/src/service/manga_library_service.dart';
 import 'package:jhentai/src/utils/route_util.dart';
@@ -21,7 +24,7 @@ class MangaLibraryDetailPage extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('mangaLibraryDetail'.tr)),
+      appBar: AppBar(title: Text('mangaLibraryDetail'.tr), actions: const [DownloadPageSwitchButton(targetGalleryType: DownloadPageGalleryType.download)]),
       body: GetBuilder<MangaLibraryService>(
         id: MangaLibraryService.libraryChangedId,
         builder: (_) {
@@ -197,17 +200,11 @@ class _TagList extends StatelessWidget {
       spacing: 6,
       runSpacing: 4,
       children: tags.map((tag) {
-        return ActionChip(
-          label: Text(_tagText(tag), overflow: TextOverflow.ellipsis),
-          onPressed: () => mangaLibraryService.toggleSelectedTag(tag),
+        return MangaLibraryTagChip(
+          tag: tag,
+          onTap: mangaLibraryService.toggleSelectedTag,
         );
       }).toList(),
     );
   }
-}
-
-String _tagText(TagData tag) {
-  String namespace = tag.translatedNamespace ?? tag.namespace;
-  String key = tag.tagName ?? tag.key;
-  return '$namespace:$key';
 }

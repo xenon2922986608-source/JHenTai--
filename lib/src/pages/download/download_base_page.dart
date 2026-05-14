@@ -25,6 +25,8 @@ class DownloadPage extends StatefulWidget {
   State<DownloadPage> createState() => _DownloadPageState();
 }
 
+final ValueNotifier<DownloadPageGalleryType?> downloadPageGalleryTypeNotifier = ValueNotifier<DownloadPageGalleryType?>(null);
+
 class _DownloadPageState extends State<DownloadPage> {
   DownloadPageGalleryType galleryType = DownloadPageGalleryType.download;
   DownloadPageBodyType bodyType = GetPlatform.isMobile ? DownloadPageBodyType.list : DownloadPageBodyType.grid;
@@ -34,12 +36,32 @@ class _DownloadPageState extends State<DownloadPage> {
   void initState() {
     super.initState();
 
+    downloadPageGalleryTypeNotifier.addListener(_handleRequestedGalleryType);
+
     localConfigService.read(configKey: ConfigEnum.downloadPageBodyType).then((bodyTypeString) {
       if (bodyTypeString != null) {
-        bodyType = DownloadPageBodyType.values[int.tryParse(bodyTypeString) ?? 0];
+        int index = int.tryParse(bodyTypeString) ?? bodyType.index;
+        bodyType = index >= 0 && index < DownloadPageBodyType.values.length ? DownloadPageBodyType.values[index] : bodyType;
       }
     }).whenComplete(() {
       bodyTypeCompleter.complete();
+    });
+  }
+
+  @override
+  void dispose() {
+    downloadPageGalleryTypeNotifier.removeListener(_handleRequestedGalleryType);
+    super.dispose();
+  }
+
+  void _handleRequestedGalleryType() {
+    DownloadPageGalleryType? requestedGalleryType = downloadPageGalleryTypeNotifier.value;
+    if (requestedGalleryType == null) {
+      return;
+    }
+
+    setState(() {
+      galleryType = _normalizeVisibleGalleryType(requestedGalleryType);
     });
   }
 
@@ -49,9 +71,12 @@ class _DownloadPageState extends State<DownloadPage> {
       child: NotificationListener<DownloadPageBodyTypeChangeNotification>(
         onNotification: (DownloadPageBodyTypeChangeNotification notification) {
           setState(() {
-            galleryType = notification.galleryType ?? galleryType;
+            galleryType = _normalizeVisibleGalleryType(notification.galleryType ?? galleryType);
             bodyType = notification.bodyType ?? bodyType;
           });
+          if (notification.galleryType != null) {
+            downloadPageGalleryTypeNotifier.value = galleryType;
+          }
           localConfigService.write(configKey: ConfigEnum.downloadPageBodyType, value: (notification.bodyType ?? bodyType).index.toString());
           return true;
         },
@@ -97,7 +122,7 @@ class DownloadPageSegmentControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CupertinoSlidingSegmentedControl<DownloadPageGalleryType>(
-      groupValue: galleryType,
+      groupValue: _normalizeVisibleGalleryType(galleryType),
       padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 3),
       children: {
         DownloadPageGalleryType.download: SizedBox(
@@ -111,14 +136,8 @@ class DownloadPageSegmentControl extends StatelessWidget {
             ),
           ),
         ),
-        DownloadPageGalleryType.archive: Text(
-          'archive'.tr,
-          style: const TextStyle(fontSize: UIConfig.downloadPageSegmentedTextSize, fontWeight: FontWeight.bold),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        DownloadPageGalleryType.local: Text(
-          'local'.tr,
+        DownloadPageGalleryType.library: Text(
+          'mangaLibrary'.tr,
           style: const TextStyle(fontSize: UIConfig.downloadPageSegmentedTextSize, fontWeight: FontWeight.bold),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -133,6 +152,10 @@ class DownloadPageSegmentControl extends StatelessWidget {
       onValueChanged: (value) => DownloadPageBodyTypeChangeNotification(galleryType: value!).dispatch(context),
     );
   }
+}
+
+DownloadPageGalleryType _normalizeVisibleGalleryType(DownloadPageGalleryType galleryType) {
+  return galleryType == DownloadPageGalleryType.library ? DownloadPageGalleryType.library : DownloadPageGalleryType.download;
 }
 
 class GroupOpenIndicator extends StatefulWidget {

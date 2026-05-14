@@ -69,6 +69,13 @@ class pt_BR {
       'sortDownloadTimeDesc': 'Downloads mais recentes',
       'sortTitleAsc': 'Título A-Z',
       'sortPageCountDesc': 'Mais páginas primeiro',
+      'noMangaLibrarySearchResult': 'Nenhum mangá encontrado',
+      'displayMode': 'Modo de exibição',
+      'mangaLibraryCoverMode': 'Modo capa',
+      'mangaLibraryCompactMode': 'Modo compacto',
+      'mangaLibraryDetailMode': 'Modo detalhado',
+      'switchToMangaLibrary': 'Ir para biblioteca',
+      'switchToDownload': 'Ir para downloads',
 
       /// schedule
       'dawnOfaNewDay': 'It is the dawn of a new day!',

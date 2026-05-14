@@ -16,6 +16,12 @@ enum MangaLibrarySortType {
   pageCountDesc,
 }
 
+enum MangaLibraryDisplayMode {
+  cover,
+  compact,
+  detail,
+}
+
 class MangaLibraryItem {
   final MangaLibraryItemType type;
   final int gid;

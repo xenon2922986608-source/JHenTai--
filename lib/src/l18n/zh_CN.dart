@@ -69,6 +69,13 @@ class zh_CN {
       'sortDownloadTimeDesc': '最新下载优先',
       'sortTitleAsc': '标题 A-Z',
       'sortPageCountDesc': '页数最多优先',
+      'noMangaLibrarySearchResult': '没有匹配的漫画',
+      'displayMode': '显示模式',
+      'mangaLibraryCoverMode': '封面模式',
+      'mangaLibraryCompactMode': '简洁模式',
+      'mangaLibraryDetailMode': '详细模式',
+      'switchToMangaLibrary': '切换到漫画库',
+      'switchToDownload': '切换到下载',
 
       /// unlock page
       'localizedReason': '请验证以继续',

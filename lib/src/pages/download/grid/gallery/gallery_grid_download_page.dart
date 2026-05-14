@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:jhentai/src/pages/download/download_page_switch_button.dart';
 
 import 'package:blur/blur.dart';
 import 'package:flutter/material.dart';
@@ -49,6 +50,7 @@ class GalleryGridDownloadPage extends StatelessWidget with Scroll2TopPageMixin, 
   @override
   List<Widget> buildAppBarActions(BuildContext context) {
     return [
+      const DownloadPageSwitchButton(targetGalleryType: DownloadPageGalleryType.library),
       GetBuilder<GalleryGridDownloadPageLogic>(
         global: false,
         init: logic,

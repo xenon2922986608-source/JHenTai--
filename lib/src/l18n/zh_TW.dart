@@ -69,6 +69,13 @@ class zh_TW {
       'sortDownloadTimeDesc': '最新下載優先',
       'sortTitleAsc': '標題 A-Z',
       'sortPageCountDesc': '頁數最多優先',
+      'noMangaLibrarySearchResult': '沒有符合的漫畫',
+      'displayMode': '顯示模式',
+      'mangaLibraryCoverMode': '封面模式',
+      'mangaLibraryCompactMode': '簡潔模式',
+      'mangaLibraryDetailMode': '詳細模式',
+      'switchToMangaLibrary': '切換到漫畫庫',
+      'switchToDownload': '切換到下載',
 
       /// unlock page
       'localizedReason': '請驗證以繼續',

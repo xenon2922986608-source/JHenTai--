@@ -4,10 +4,13 @@ import 'package:jhentai/src/database/database.dart';
 import 'package:jhentai/src/extension/widget_extension.dart';
 import 'package:jhentai/src/model/manga_library_item.dart';
 import 'package:jhentai/src/pages/download/download_base_page.dart';
+import 'package:jhentai/src/pages/download/download_page_switch_button.dart';
+import 'package:jhentai/src/pages/manga_library/manga_library_tag_chip.dart';
 import 'package:jhentai/src/routes/routes.dart';
 import 'package:jhentai/src/service/archive_download_service.dart';
 import 'package:jhentai/src/service/gallery_download_service.dart';
 import 'package:jhentai/src/service/manga_library_service.dart';
+import 'package:jhentai/src/utils/manga_library_tag_util.dart';
 import 'package:jhentai/src/utils/route_util.dart';
 import 'package:jhentai/src/widget/eh_alert_dialog.dart';
 import 'package:jhentai/src/widget/eh_gallery_category_tag.dart';
@@ -27,6 +30,7 @@ class MangaLibraryPage extends StatelessWidget {
         titleSpacing: 0,
         title: const DownloadPageSegmentControl(galleryType: DownloadPageGalleryType.library),
         actions: [
+          const DownloadPageSwitchButton(targetGalleryType: DownloadPageGalleryType.download),
           GetBuilder<MangaLibraryService>(
             id: MangaLibraryService.libraryChangedId,
             builder: (_) {
@@ -50,6 +54,10 @@ class MangaLibraryPage extends StatelessWidget {
           GetBuilder<MangaLibraryService>(
             id: MangaLibraryService.libraryChangedId,
             builder: (_) => _buildSortButton(),
+          ),
+          GetBuilder<MangaLibraryService>(
+            id: MangaLibraryService.libraryChangedId,
+            builder: (_) => _buildDisplayModeButton(),
           ),
           GetBuilder<MangaLibraryService>(
             id: MangaLibraryService.libraryChangedId,
@@ -84,20 +92,37 @@ class MangaLibraryPage extends StatelessWidget {
         _buildLibraryToolbar(items.length),
         if (mangaLibraryService.hasActiveFilters) _buildActiveFilters(),
         Expanded(
-          child: items.isEmpty
-              ? Center(child: Text('noData'.tr))
-              : EHWheelSpeedController(
-                  controller: scrollController,
-                  child: ListView.separated(
-                    controller: scrollController,
-                    padding: const EdgeInsets.only(left: 8, right: 8, top: 8, bottom: 80),
-                    itemBuilder: (context, index) => _MangaLibraryCard(item: items[index]),
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemCount: items.length,
-                  ),
-                ),
+          child: items.isEmpty ? Center(child: Text('noMangaLibrarySearchResult'.tr)) : _buildItemList(items),
         ),
       ],
+    );
+  }
+
+  Widget _buildItemList(List<MangaLibraryItem> items) {
+    if (mangaLibraryService.displayMode == MangaLibraryDisplayMode.cover) {
+      return GridView.builder(
+        controller: scrollController,
+        padding: const EdgeInsets.only(left: 8, right: 8, top: 8, bottom: 80),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 170,
+          childAspectRatio: 0.68,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+        ),
+        itemBuilder: (context, index) => _MangaLibraryCard(item: items[index], displayMode: mangaLibraryService.displayMode),
+        itemCount: items.length,
+      );
+    }
+
+    return EHWheelSpeedController(
+      controller: scrollController,
+      child: ListView.separated(
+        controller: scrollController,
+        padding: const EdgeInsets.only(left: 8, right: 8, top: 8, bottom: 80),
+        itemBuilder: (context, index) => _MangaLibraryCard(item: items[index], displayMode: mangaLibraryService.displayMode),
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemCount: items.length,
+      ),
     );
   }
 
@@ -174,6 +199,23 @@ class MangaLibraryPage extends StatelessWidget {
     );
   }
 
+  Widget _buildDisplayModeButton() {
+    return PopupMenuButton<MangaLibraryDisplayMode>(
+      tooltip: 'displayMode'.tr,
+      icon: const Icon(Icons.view_module),
+      onSelected: mangaLibraryService.setDisplayMode,
+      itemBuilder: (_) => MangaLibraryDisplayMode.values
+          .map(
+            (mode) => CheckedPopupMenuItem<MangaLibraryDisplayMode>(
+              value: mode,
+              checked: mode == mangaLibraryService.displayMode,
+              child: Text(_displayModeTitle(mode)),
+            ),
+          )
+          .toList(),
+    );
+  }
+
   Widget _buildActiveFilters() {
     return Container(
       width: double.infinity,
@@ -202,7 +244,7 @@ class MangaLibraryPage extends StatelessWidget {
             ),
           ...mangaLibraryService.selectedTags.map(
             (tag) => InputChip(
-              label: Text(_tagText(tag)),
+              label: Text(mangaLibraryTagText(tag)),
               onDeleted: () => mangaLibraryService.toggleSelectedTag(tag),
             ),
           ),
@@ -260,12 +302,25 @@ class MangaLibraryPage extends StatelessWidget {
         return 'sortPageCountDesc'.tr;
     }
   }
+
+
+  String _displayModeTitle(MangaLibraryDisplayMode mode) {
+    switch (mode) {
+      case MangaLibraryDisplayMode.cover:
+        return 'mangaLibraryCoverMode'.tr;
+      case MangaLibraryDisplayMode.compact:
+        return 'mangaLibraryCompactMode'.tr;
+      case MangaLibraryDisplayMode.detail:
+        return 'mangaLibraryDetailMode'.tr;
+    }
+  }
 }
 
 class _MangaLibraryCard extends StatelessWidget {
   final MangaLibraryItem item;
+  final MangaLibraryDisplayMode displayMode;
 
-  const _MangaLibraryCard({required this.item});
+  const _MangaLibraryCard({required this.item, required this.displayMode});
 
   @override
   Widget build(BuildContext context) {
@@ -273,51 +328,99 @@ class _MangaLibraryCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => toRoute(Routes.mangaLibraryDetail, arguments: item, preventDuplicates: false),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              EHImage(galleryImage: item.cover, containerWidth: 90, containerHeight: 128, fit: BoxFit.cover),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        EHGalleryCategoryTag(
-                          category: item.category,
-                          height: 20,
-                          textStyle: const TextStyle(height: 1, fontSize: 12, color: Colors.white),
-                          onTap: () => mangaLibraryService.setSelectedCategory(item.category),
-                        ),
-                        Text(item.type == MangaLibraryItemType.gallery ? 'gallery'.tr : 'archive'.tr),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text('${'pageCount'.tr}: ${item.pageCount}  ${'uploader'.tr}: ${item.uploader ?? '-'}', maxLines: 1, overflow: TextOverflow.ellipsis),
-                    Text('${'downloadTime'.tr}: ${item.downloadTime}', maxLines: 1, overflow: TextOverflow.ellipsis),
-                    Text('${'localPath'.tr}: ${item.localPath}', maxLines: 1, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 4),
-                    _TagPreview(tags: item.tags),
-                  ],
-                ),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(icon: const Icon(Icons.menu_book), onPressed: () => mangaLibraryService.openReader(item)),
-                  IconButton(icon: const Icon(Icons.delete), onPressed: () => _confirmDelete(context, item)),
-                ],
-              ),
+        child: displayMode == MangaLibraryDisplayMode.cover ? _buildCoverMode(context) : _buildListMode(context),
+      ),
+    );
+  }
+
+  Widget _buildCoverMode(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        EHImage(galleryImage: item.cover, fit: BoxFit.cover),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(6),
+            color: Colors.black.withOpacity(0.62),
+            child: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 12)),
+          ),
+        ),
+        Positioned(
+          top: 0,
+          right: 0,
+          child: PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            onSelected: (value) {
+              if (value == 'read') {
+                mangaLibraryService.openReader(item);
+              }
+              if (value == 'delete') {
+                _confirmDelete(context, item);
+              }
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'read', child: Text('read'.tr)),
+              PopupMenuItem(value: 'delete', child: Text('delete'.tr)),
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildListMode(BuildContext context) {
+    bool isDetailMode = displayMode == MangaLibraryDisplayMode.detail;
+    double coverWidth = isDetailMode ? 150 : 90;
+    double coverHeight = isDetailMode ? 214 : 128;
+
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          EHImage(galleryImage: item.cover, containerWidth: coverWidth, containerHeight: coverHeight, fit: BoxFit.cover),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.title, maxLines: isDetailMode ? 3 : 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    EHGalleryCategoryTag(
+                      category: item.category,
+                      height: 20,
+                      textStyle: const TextStyle(height: 1, fontSize: 12, color: Colors.white),
+                      onTap: () => mangaLibraryService.setSelectedCategory(item.category),
+                    ),
+                    Text(item.type == MangaLibraryItemType.gallery ? 'gallery'.tr : 'archive'.tr),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text('${'pageCount'.tr}: ${item.pageCount}  ${'uploader'.tr}: ${item.uploader ?? '-'}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (isDetailMode) ...[
+                  Text('${'downloadTime'.tr}: ${item.downloadTime}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text('${'localPath'.tr}: ${item.localPath}', maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text('${'userRating'.tr}: -', maxLines: 1, overflow: TextOverflow.ellipsis),
+                ],
+                const SizedBox(height: 4),
+                _TagPreview(tags: item.tags, maxCount: isDetailMode ? 24 : 8),
+              ],
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(icon: const Icon(Icons.menu_book), onPressed: () => mangaLibraryService.openReader(item)),
+              IconButton(icon: const Icon(Icons.delete), onPressed: () => _confirmDelete(context, item)),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -332,30 +435,21 @@ class _MangaLibraryCard extends StatelessWidget {
 
 class _TagPreview extends StatelessWidget {
   final List<TagData> tags;
+  final int maxCount;
 
-  const _TagPreview({required this.tags});
+  const _TagPreview({required this.tags, required this.maxCount});
 
   @override
   Widget build(BuildContext context) {
     return Wrap(
       spacing: 4,
       runSpacing: 2,
-      children: tags.take(10).map((tag) {
+      children: tags.take(maxCount).map((tag) {
         return InkWell(
           onTap: () => mangaLibraryService.toggleSelectedTag(tag),
-          child: Chip(
-            label: Text(_tagText(tag), overflow: TextOverflow.ellipsis),
-            visualDensity: VisualDensity.compact,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
+          child: MangaLibraryTagChip(tag: tag),
         );
       }).toList(),
     );
   }
-}
-
-String _tagText(TagData tag) {
-  String namespace = tag.translatedNamespace ?? tag.namespace;
-  String key = tag.tagName ?? tag.key;
-  return '$namespace:$key';
 }

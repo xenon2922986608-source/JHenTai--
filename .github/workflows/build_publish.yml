@@ -28,13 +28,6 @@ jobs:
             os: windows-latest
             artifact_name: release-Windows
             artifact_path: build/windows/*.zip
-          - target: iOS
-            os: macos-latest
-            cache_pod_key: ios-pods
-            cache_pod_path: ios/Pods
-            cache_pod_restore_keys_hash_file: ios/Podfile.lock
-            artifact_name: release-iOS
-            artifact_path: build/**/*.ipa
     outputs:
       version: ${{ steps.get_version.outputs.version }}
       arch: ${{ steps.get_version.outputs.arch}}
@@ -119,14 +112,6 @@ jobs:
       # Output Flutter Version
       - name: Output Flutter Version
         run: flutter --version
-      # Cache Pod
-      - name: Cache Pod
-        if: matrix.cache_pod_key != null
-        uses: actions/cache@v3
-        with:
-          key: ${{ matrix.cache_pod_key }}
-          path: ${{ matrix.cache_pod_path }}
-          restore-keys: ${{ matrix.cache_key }}-${{ hashFiles(matrix.cache_pod_restore_keys_hash_file)}}
       # Setup JDK
       - name: Setup JDK 17 (Android)
         if: matrix.target == 'Android'
@@ -135,10 +120,6 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
           cache: gradle
-      # Xcodebuild
-      - name: Build Xcode
-        if: matrix.os == 'macos-latest'
-        run: xcodebuild -resolvePackageDependencies -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release
       # Flutter Pub Get
       - name: Flutter Pub Get
         run: |
@@ -160,20 +141,6 @@ jobs:
           mv app-arm64-v8a-release.apk JHenTai-${{ steps.get_version.outputs.version }}-arm64-v8a.apk
           mv app-armeabi-v7a-release.apk JHenTai-${{ steps.get_version.outputs.version }}-armeabi-v7a.apk
           mv app-x86_64-release.apk JHenTai-${{ steps.get_version.outputs.version }}-x64.apk
-      # Build iOS .ipa
-      - name: Build iOS
-        if: matrix.target == 'ios'
-        run: |
-          flutter precache --ios
-          cd ios
-          pod update
-          cd ..
-          flutter build ios -t lib/src/main.dart --release --no-codesign
-          sh thin-payload.sh build/ios/iphoneos/*.app
-          cd build
-          mkdir -p Payload
-          mv ios/iphoneos/*.app Payload
-          zip -9 JHenTai_${{ steps.get_version.outputs.version }}.ipa -r Payload
       # Build Windows .zip
       - name: Build Windows
         if: matrix.target == 'Windows'
@@ -231,66 +198,6 @@ jobs:
           tag: ${{ github.ref_name }}
           allowUpdates: true
           bodyFile: changelog/${{ github.ref_name }}.md
-          artifacts: /tmp/artifacts/release-Android/*.apk,/tmp/artifacts/release-iOS/*.ipa,/tmp/artifacts/release-Windows/*.zip
+          artifacts: /tmp/artifacts/release-Android/*.apk,/tmp/artifacts/release-Windows/*.zip
           artifactErrorsFailBuild: true
           replacesArtifacts: true
-
-      # Get IPA file size
-      - name: Get IPA file size
-        id: get_ipa_size
-        run: |
-          IPA_SIZE=$(stat -c %s /tmp/artifacts/release-iOS/*.ipa)
-          echo "ipa_size=$IPA_SIZE" >> $GITHUB_OUTPUT
-
-      # Get changelog content
-      - name: Get changelog content
-        id: get_changelog
-        run: |
-          # Read changelog and preserve newlines for JSON
-          CHANGELOG=$(cat changelog/${{ github.ref_name }}.md | jq -Rs .)
-          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
-
-      # Extract build version from tag
-      - name: Get build version
-        id: get_build_version
-        run: |
-          BUILD_VERSION=$(echo "${{ github.ref_name }}" | grep -oE '\+[0-9]+' | tr -d '+')
-          echo "build_version=$BUILD_VERSION" >> $GITHUB_OUTPUT
-
-      # Update AltSource.json
-      - name: Update AltSource.json
-        run: |
-          FULL_VERSION="${{ needs.Build.outputs.version }}"
-          # Remove build number part (content after +)
-          VERSION="${FULL_VERSION%%+*}"
-          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          
-          # Get changelog as raw string (remove quotes added by jq -Rs)
-          CHANGELOG=${{ steps.get_changelog.outputs.changelog }}
-          
-          # Create new version entry
-          jq --arg version "$VERSION" \
-             --arg build "${{ steps.get_build_version.outputs.build_version }}" \
-             --arg date "$DATE" \
-             --arg desc "$CHANGELOG" \
-             --arg url "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/JHenTai_${FULL_VERSION}.ipa" \
-             --arg size "${{ steps.get_ipa_size.outputs.ipa_size }}" \
-             '.apps[0].versions[0] = {
-                "version": $version,
-                "buildVersion": $build,
-                "date": $date,
-                "localizedDescription": $desc,
-                "downloadURL": $url,
-                "size": ($size | tonumber)
-              }' altsource/AltSource.json > altsource/AltSource.json.tmp
-          mv altsource/AltSource.json.tmp altsource/AltSource.json
-
-      # Commit and push updated AltSource.json
-      - name: Commit changes
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add altsource/AltSource.json
-          git commit -m "Update AltSource.json for version ${{ needs.Build.outputs.version }}"
-          git push origin HEAD:master
-
