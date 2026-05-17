@@ -56,6 +56,8 @@ class zh_TW {
       'mangaLibraryItemNotFound': '漫畫庫項目不存在',
       'userRating': '使用者評分',
       'tags': '標籤',
+      'missingTags': 'tag 缺失',
+      'noTags': '无标签',
       'clear': '清除',
       'clearAllFilters': '清除全部篩選',
       'activeFilters': '目前篩選',

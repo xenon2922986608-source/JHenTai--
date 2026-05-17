@@ -56,6 +56,8 @@ class en_US {
       'mangaLibraryItemNotFound': 'Manga library item not found',
       'userRating': 'User Rating',
       'tags': 'Tags',
+      'missingTags': 'Missing Tags',
+      'noTags': 'No tags',
       'clear': 'Clear',
       'clearAllFilters': 'Clear all filters',
       'activeFilters': 'Active Filters',

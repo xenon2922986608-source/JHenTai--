@@ -37,6 +37,7 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   String searchKeyword = '';
   MangaLibraryItemType? selectedType;
   String? selectedCategory;
+  bool filterMissingTags = false;
   MangaLibrarySortType sortType = MangaLibrarySortType.downloadTimeDesc;
   MangaLibraryDisplayMode displayMode = MangaLibraryDisplayMode.compact;
   final Map<String, TagData> _tagTranslationMap = {};
@@ -160,7 +161,12 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         return false;
       }
 
-      if (selectedTags.isNotEmpty &&
+      if (filterMissingTags && item.tags.isNotEmpty) {
+        return false;
+      }
+
+      if (!filterMissingTags &&
+          selectedTags.isNotEmpty &&
           !selectedTags.every((selectedTag) => item.tags.any((tag) => tag.namespace == selectedTag.namespace && tag.key == selectedTag.key))) {
         return false;
       }
@@ -181,7 +187,7 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
     return items.map((item) => item.category).toSet().toList()..sort();
   }
 
-  bool get hasActiveFilters => searchKeyword.trim().isNotEmpty || selectedType != null || selectedCategory != null || selectedTags.isNotEmpty;
+  bool get hasActiveFilters => searchKeyword.trim().isNotEmpty || selectedType != null || selectedCategory != null || selectedTags.isNotEmpty || filterMissingTags;
 
   MangaLibraryItem? findItem(String itemId) {
     return items.firstWhereOrNull((item) => item.id == itemId);
@@ -263,6 +269,26 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
     update([libraryChangedId]);
   }
 
+  bool isTagSelected(TagData tagData) {
+    return selectedTags.any((tag) => tag.namespace == tagData.namespace && tag.key == tagData.key);
+  }
+
+  void toggleMissingTagsFilter() {
+    filterMissingTags = !filterMissingTags;
+    if (filterMissingTags) {
+      selectedTags.clear();
+    }
+    update([libraryChangedId]);
+  }
+
+  void clearMissingTagsFilter() {
+    if (!filterMissingTags) {
+      return;
+    }
+    filterMissingTags = false;
+    update([libraryChangedId]);
+  }
+
   void setSortType(MangaLibrarySortType type) {
     sortType = type;
     update([libraryChangedId]);
@@ -275,6 +301,7 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   }
 
   void toggleSelectedTag(TagData tagData) {
+    filterMissingTags = false;
     int index = selectedTags.indexWhere((tag) => tag.namespace == tagData.namespace && tag.key == tagData.key);
     if (index == -1) {
       selectedTags.add(TagData(namespace: tagData.namespace, key: tagData.key));
@@ -293,6 +320,7 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
     searchKeyword = '';
     selectedType = null;
     selectedCategory = null;
+    filterMissingTags = false;
     selectedTags.clear();
     update([libraryChangedId]);
   }

@@ -56,6 +56,8 @@ class pt_BR {
       'mangaLibraryItemNotFound': 'Item da biblioteca não encontrado',
       'userRating': 'Avaliação do usuário',
       'tags': 'Tags',
+      'missingTags': 'Missing Tags',
+      'noTags': 'No tags',
       'clear': 'Limpar',
       'clearAllFilters': 'Limpar todos os filtros',
       'activeFilters': 'Filtros ativos',

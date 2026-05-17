@@ -56,6 +56,8 @@ class zh_CN {
       'mangaLibraryItemNotFound': '漫画库条目不存在',
       'userRating': '用户评分',
       'tags': '标签',
+      'missingTags': 'tag 缺失',
+      'noTags': '无标签',
       'clear': '清除',
       'clearAllFilters': '清除全部筛选',
       'activeFilters': '当前筛选',

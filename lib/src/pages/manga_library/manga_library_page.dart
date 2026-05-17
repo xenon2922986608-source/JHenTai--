@@ -172,6 +172,7 @@ class MangaLibraryPage extends StatelessWidget {
           Chip(label: Text('${'itemCount'.tr}: $filteredCount/${mangaLibraryService.items.length}')),
           _buildTypeFilterButton(),
           _buildCategoryFilterButton(),
+          _buildMissingTagsFilterChip(),
         ],
       ),
     );
@@ -204,6 +205,15 @@ class MangaLibraryPage extends StatelessWidget {
         avatar: const Icon(Icons.collections_bookmark, size: 18),
         label: Text('${'filterByType'.tr}: ${_typeTitle(mangaLibraryService.selectedType)}'),
       ),
+    );
+  }
+
+  Widget _buildMissingTagsFilterChip() {
+    return FilterChip(
+      avatar: Icon(mangaLibraryService.filterMissingTags ? Icons.check_circle : Icons.label_off, size: 18),
+      label: Text('missingTags'.tr),
+      selected: mangaLibraryService.filterMissingTags,
+      onSelected: (_) => mangaLibraryService.toggleMissingTagsFilter(),
     );
   }
 
@@ -281,6 +291,12 @@ class MangaLibraryPage extends StatelessWidget {
             InputChip(
               label: Text(mangaLibraryService.selectedCategory!),
               onDeleted: () => mangaLibraryService.setSelectedCategory(null),
+            ),
+          if (mangaLibraryService.filterMissingTags)
+            InputChip(
+              avatar: const Icon(Icons.label_off, size: 18),
+              label: Text('missingTags'.tr),
+              onDeleted: mangaLibraryService.clearMissingTagsFilter,
             ),
           ...mangaLibraryService.selectedTags.map(
             (tag) => InputChip(

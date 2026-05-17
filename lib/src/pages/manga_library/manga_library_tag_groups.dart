@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:jhentai/src/database/database.dart';
 import 'package:jhentai/src/pages/manga_library/manga_library_tag_chip.dart';
+import 'package:jhentai/src/service/manga_library_service.dart';
 import 'package:jhentai/src/utils/manga_library_tag_util.dart';
 
 class MangaLibraryTagGroups extends StatelessWidget {
@@ -23,7 +25,7 @@ class MangaLibraryTagGroups extends StatelessWidget {
   Widget build(BuildContext context) {
     final groups = groupMangaLibraryTagsByNamespace(tags).entries.take(maxGroups ?? tags.length).toList();
     if (groups.isEmpty) {
-      return const SizedBox();
+      return _NoTagsHint(dense: dense);
     }
 
     return Column(
@@ -49,13 +51,37 @@ class MangaLibraryTagGroups extends StatelessWidget {
                 child: Wrap(
                   spacing: dense ? 4 : 6,
                   runSpacing: dense ? 3 : 5,
-                  children: groupTags.map((tag) => MangaLibraryTagChip(tag: tag, onTap: onTapTag)).toList(),
+                  children: groupTags.map((tag) => MangaLibraryTagChip(tag: tag, onTap: onTapTag, selected: mangaLibraryService.isTagSelected(tag))).toList(),
                 ),
               ),
             ],
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+
+class _NoTagsHint extends StatelessWidget {
+  final bool dense;
+
+  const _NoTagsHint({required this.dense});
+
+  @override
+  Widget build(BuildContext context) {
+    ColorScheme colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: dense ? 6 : 8, vertical: dense ? 3 : 5),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceVariant.withOpacity(0.65),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Text(
+        'noTags'.tr,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colorScheme.onSurfaceVariant),
+      ),
     );
   }
 }
