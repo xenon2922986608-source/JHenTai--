@@ -3,7 +3,9 @@ import 'package:jhentai/src/model/gallery_image.dart';
 
 enum MangaLibraryItemType {
   gallery('gallery'),
-  archive('archive');
+  archive('archive'),
+  importedFolder('importedFolder'),
+  pdf('pdf');
 
   final String code;
 
@@ -24,12 +26,12 @@ enum MangaLibraryDisplayMode {
 
 class MangaLibraryItem {
   final MangaLibraryItemType type;
-  final int gid;
-  final String token;
+  final int? gid;
+  final String? token;
   final String title;
   final String category;
   final int pageCount;
-  final String galleryUrl;
+  final String? galleryUrl;
   final String? uploader;
   final List<TagData> tags;
   final String downloadTime;
@@ -39,12 +41,12 @@ class MangaLibraryItem {
 
   const MangaLibraryItem({
     required this.type,
-    required this.gid,
-    required this.token,
+    this.gid,
+    this.token,
     required this.title,
     required this.category,
     required this.pageCount,
-    required this.galleryUrl,
+    this.galleryUrl,
     required this.uploader,
     required this.tags,
     required this.downloadTime,
@@ -53,11 +55,17 @@ class MangaLibraryItem {
     this.isOriginal = false,
   });
 
-  String get id => '${type.code}:$gid';
+  String get id => stableKey;
 
-  String get stableKey => MangaLibraryItem.buildStableKey(type: type, gid: gid, token: token);
+  String get stableKey => MangaLibraryItem.buildStableKey(type: type, gid: gid, token: token, localPath: localPath);
 
-  static String buildStableKey({required MangaLibraryItemType type, required int gid, String? token}) {
+  bool get isImported => type == MangaLibraryItemType.importedFolder || type == MangaLibraryItemType.pdf;
+
+  static String buildStableKey({required MangaLibraryItemType type, int? gid, String? token, String? localPath}) {
+    if (type == MangaLibraryItemType.importedFolder || type == MangaLibraryItemType.pdf) {
+      return '${type.code}:${localPath ?? ''}';
+    }
+
     String normalizedToken = token?.trim() ?? '';
     return normalizedToken.isEmpty ? '${type.code}:$gid' : '${type.code}:$gid:$normalizedToken';
   }

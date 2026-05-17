@@ -124,6 +124,7 @@ class Routes {
   static const String proxy = "/setting_network/proxy";
 
   static const String extraGalleryScanPath = "/setting_download/extraGalleryScanPath";
+  static const String downloadExperimental = '/setting_download/experimental';
   static const String archiveBotSettings = '/setting/download/archive_bot';
 
   static const String superResolution = "/setting_advanced/superResolution";
@@ -411,6 +412,12 @@ class Routes {
     EHPage(
       name: extraGalleryScanPath,
       page: () => const ExtraGalleryScanPathPage().withEscOrFifthButton2BackRightRoute(),
+      transition: defaultTransition,
+      offAllBefore: false,
+    ),
+    EHPage(
+      name: downloadExperimental,
+      page: () => const DownloadExperimentalPage().withEscOrFifthButton2BackRightRoute(),
       transition: defaultTransition,
       offAllBefore: false,
     ),

@@ -77,7 +77,7 @@ class _SimilarityItem extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        EHImage(galleryImage: item.cover, containerWidth: 72, containerHeight: 102, fit: BoxFit.cover),
+        _SimilarityCover(item: item),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -85,7 +85,7 @@ class _SimilarityItem extends StatelessWidget {
             children: [
               Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
               Text('${'pageCount'.tr}: ${item.pageCount}'),
-              Text(item.type == MangaLibraryItemType.gallery ? 'gallery'.tr : 'archive'.tr),
+              Text(_mangaLibraryTypeTitle(item.type)),
               MangaLibraryTagGroups(tags: item.tags, onTapTag: mangaLibraryService.toggleSelectedTag, maxGroups: 3, maxTagsPerGroup: 3, dense: true),
               Wrap(
                 spacing: 8,
@@ -102,9 +102,45 @@ class _SimilarityItem extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, MangaLibraryItem item) async {
-    bool? result = await showDialog(context: context, builder: (_) => EHDialog(title: 'delete'.tr + '?'));
+    bool? result = await showDialog(
+      context: context,
+      builder: (_) => EHDialog(title: item.isImported ? 'removeImportedItemOnlyHint'.tr : 'delete'.tr + '?'),
+    );
     if (result == true) {
       await mangaLibraryService.deleteItem(item);
     }
+  }
+}
+
+class _SimilarityCover extends StatelessWidget {
+  final MangaLibraryItem item;
+
+  const _SimilarityCover({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    if (item.type == MangaLibraryItemType.pdf || (item.cover.path == null && item.cover.url.isEmpty)) {
+      return Container(
+        width: 72,
+        height: 102,
+        color: Theme.of(context).colorScheme.surfaceVariant,
+        child: Icon(Icons.picture_as_pdf, color: Theme.of(context).colorScheme.primary),
+      );
+    }
+
+    return EHImage(galleryImage: item.cover, containerWidth: 72, containerHeight: 102, fit: BoxFit.cover);
+  }
+}
+
+String _mangaLibraryTypeTitle(MangaLibraryItemType type) {
+  switch (type) {
+    case MangaLibraryItemType.gallery:
+      return 'gallery'.tr;
+    case MangaLibraryItemType.archive:
+      return 'archive'.tr;
+    case MangaLibraryItemType.importedFolder:
+      return 'importedFolder'.tr;
+    case MangaLibraryItemType.pdf:
+      return 'PDF'.tr;
   }
 }

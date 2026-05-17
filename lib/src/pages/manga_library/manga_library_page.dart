@@ -9,6 +9,7 @@ import 'package:jhentai/src/routes/routes.dart';
 import 'package:jhentai/src/service/archive_download_service.dart';
 import 'package:jhentai/src/service/gallery_download_service.dart';
 import 'package:jhentai/src/service/manga_library_service.dart';
+import 'package:jhentai/src/service/manga_library_import_service.dart';
 import 'package:jhentai/src/utils/manga_library_tag_util.dart';
 import 'package:jhentai/src/utils/route_util.dart';
 import 'package:jhentai/src/utils/toast_util.dart';
@@ -74,9 +75,12 @@ class MangaLibraryPage extends StatelessWidget {
         id: galleryDownloadService.galleryCountChangedId,
         builder: (_) => GetBuilder<ArchiveDownloadService>(
           id: archiveDownloadService.galleryCountChangedId,
-          builder: (_) => GetBuilder<MangaLibraryService>(
-            id: MangaLibraryService.libraryChangedId,
-            builder: (_) => _buildBody(context),
+          builder: (_) => GetBuilder<MangaLibraryImportService>(
+            id: MangaLibraryImportService.importedItemsChangedId,
+            builder: (_) => GetBuilder<MangaLibraryService>(
+              id: MangaLibraryService.libraryChangedId,
+              builder: (_) => _buildBody(context),
+            ),
           ),
         ),
       ),
@@ -181,6 +185,10 @@ class MangaLibraryPage extends StatelessWidget {
           mangaLibraryService.setSelectedType(MangaLibraryItemType.gallery);
         } else if (value == 'archive') {
           mangaLibraryService.setSelectedType(MangaLibraryItemType.archive);
+        } else if (value == 'importedFolder') {
+          mangaLibraryService.setSelectedType(MangaLibraryItemType.importedFolder);
+        } else if (value == 'pdf') {
+          mangaLibraryService.setSelectedType(MangaLibraryItemType.pdf);
         } else {
           mangaLibraryService.setSelectedType(null);
         }
@@ -189,6 +197,8 @@ class MangaLibraryPage extends StatelessWidget {
         PopupMenuItem<String>(value: 'all', child: Text('allTypes'.tr)),
         PopupMenuItem<String>(value: 'gallery', child: Text('gallery'.tr)),
         PopupMenuItem<String>(value: 'archive', child: Text('archive'.tr)),
+        PopupMenuItem<String>(value: 'importedFolder', child: Text('importedFolder'.tr)),
+        PopupMenuItem<String>(value: 'pdf', child: Text('PDF'.tr)),
       ],
       child: Chip(
         avatar: const Icon(Icons.collections_bookmark, size: 18),
@@ -319,6 +329,10 @@ class MangaLibraryPage extends StatelessWidget {
         return 'gallery'.tr;
       case MangaLibraryItemType.archive:
         return 'archive'.tr;
+      case MangaLibraryItemType.importedFolder:
+        return 'importedFolder'.tr;
+      case MangaLibraryItemType.pdf:
+        return 'PDF'.tr;
     }
   }
 
@@ -370,7 +384,7 @@ class _MangaLibraryCard extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        EHImage(galleryImage: item.cover, fit: BoxFit.cover),
+        _MangaLibraryCover(item: item, fit: BoxFit.cover),
         Align(
           alignment: Alignment.bottomCenter,
           child: Container(
@@ -413,7 +427,7 @@ class _MangaLibraryCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          EHImage(galleryImage: item.cover, containerWidth: coverWidth, containerHeight: coverHeight, fit: BoxFit.cover),
+          _MangaLibraryCover(item: item, width: coverWidth, height: coverHeight, fit: BoxFit.cover),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -431,7 +445,7 @@ class _MangaLibraryCard extends StatelessWidget {
                       textStyle: const TextStyle(height: 1, fontSize: 12, color: Colors.white),
                       onTap: () => mangaLibraryService.setSelectedCategory(item.category),
                     ),
-                    Text(item.type == MangaLibraryItemType.gallery ? 'gallery'.tr : 'archive'.tr),
+                    Text(_mangaLibraryTypeTitle(item.type)),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -461,9 +475,57 @@ class _MangaLibraryCard extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, MangaLibraryItem item) async {
-    bool? result = await showDialog(context: context, builder: (_) => EHDialog(title: 'delete'.tr + '?'));
+    bool? result = await showDialog(
+      context: context,
+      builder: (_) => EHDialog(title: item.isImported ? 'removeImportedItemOnlyHint'.tr : 'delete'.tr + '?'),
+    );
     if (result == true) {
       await mangaLibraryService.deleteItem(item);
     }
+  }
+}
+
+class _MangaLibraryCover extends StatelessWidget {
+  final MangaLibraryItem item;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+
+  const _MangaLibraryCover({required this.item, this.width, this.height, required this.fit});
+
+  @override
+  Widget build(BuildContext context) {
+    if (item.type == MangaLibraryItemType.pdf || (item.cover.path == null && item.cover.url.isEmpty)) {
+      return Container(
+        width: width,
+        height: height,
+        color: Theme.of(context).colorScheme.surfaceVariant,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.picture_as_pdf, size: 42, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(height: 6),
+              Text('PDF'.tr, style: Theme.of(context).textTheme.labelLarge),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return EHImage(galleryImage: item.cover, containerWidth: width, containerHeight: height, fit: fit);
+  }
+}
+
+String _mangaLibraryTypeTitle(MangaLibraryItemType type) {
+  switch (type) {
+    case MangaLibraryItemType.gallery:
+      return 'gallery'.tr;
+    case MangaLibraryItemType.archive:
+      return 'archive'.tr;
+    case MangaLibraryItemType.importedFolder:
+      return 'importedFolder'.tr;
+    case MangaLibraryItemType.pdf:
+      return 'PDF'.tr;
   }
 }

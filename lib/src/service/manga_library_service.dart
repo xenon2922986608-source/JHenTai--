@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:collection/collection.dart';
@@ -12,12 +13,17 @@ import 'package:jhentai/src/routes/routes.dart';
 import 'package:jhentai/src/service/archive_download_service.dart';
 import 'package:jhentai/src/service/gallery_download_service.dart';
 import 'package:jhentai/src/service/jh_service.dart';
+import 'package:jhentai/src/service/manga_library_import_service.dart';
 import 'package:jhentai/src/service/local_config_service.dart';
 import 'package:jhentai/src/service/read_progress_service.dart';
+import 'package:jhentai/src/service/path_service.dart';
 import 'package:jhentai/src/service/super_resolution_service.dart';
 import 'package:jhentai/src/utils/convert_util.dart';
 import 'package:jhentai/src/utils/manga_library_tag_util.dart';
 import 'package:jhentai/src/utils/route_util.dart';
+import 'package:jhentai/src/utils/file_util.dart';
+import 'package:jhentai/src/utils/toast_util.dart';
+import 'package:path/path.dart' as path;
 
 MangaLibraryService mangaLibraryService = MangaLibraryService();
 
@@ -41,7 +47,7 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   String? highlightedDownloadItemKey;
 
   @override
-  List<JHLifeCircleBean> get initDependencies => super.initDependencies..addAll([galleryDownloadService, archiveDownloadService, localConfigService]);
+  List<JHLifeCircleBean> get initDependencies => super.initDependencies..addAll([galleryDownloadService, archiveDownloadService, mangaLibraryImportService, localConfigService]);
 
   @override
   Future<void> doInitBean() async {
@@ -121,6 +127,21 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
       );
     }));
 
+    result.addAll(mangaLibraryImportService.importedItems.map((importedItem) {
+      MangaLibraryItemType type = importedItem.type == MangaLibraryItemType.pdf.code ? MangaLibraryItemType.pdf : MangaLibraryItemType.importedFolder;
+      return MangaLibraryItem(
+        type: type,
+        title: importedItem.title,
+        category: importedItem.category,
+        pageCount: importedItem.pageCount,
+        uploader: null,
+        tags: _translateTags(tagDataString2TagDataList(importedItem.tags)),
+        downloadTime: importedItem.createdAt,
+        localPath: importedItem.localPath,
+        cover: GalleryImage(url: '', path: importedItem.coverPath, downloadStatus: DownloadStatus.downloaded),
+      );
+    }));
+
     result.sort((a, b) => b.downloadTime.compareTo(a.downloadTime));
     return result;
   }
@@ -192,7 +213,10 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   }
 
   void requestFocusInDownload(MangaLibraryItem item) {
-    _pendingDownloadFocusRequest = MangaLibraryFocusRequest(type: item.type, gid: item.gid, token: item.token);
+    if (item.gid == null) {
+      return;
+    }
+    _pendingDownloadFocusRequest = MangaLibraryFocusRequest(type: item.type, gid: item.gid!, token: item.token);
     update([libraryChangedId]);
   }
 
@@ -275,8 +299,8 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
 
   bool _itemMatchesKeyword(MangaLibraryItem item, String keyword) {
     if (_normalizeSearchText(item.title).contains(keyword) ||
-        item.gid.toString().contains(keyword) ||
-        _normalizeSearchText(item.token).contains(keyword) ||
+        (item.gid?.toString() ?? '').contains(keyword) ||
+        _normalizeSearchText(item.token ?? '').contains(keyword) ||
         _normalizeSearchText(item.localPath).contains(keyword) ||
         _normalizeSearchText(item.uploader ?? '').contains(keyword)) {
       return true;
@@ -333,15 +357,44 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
 
   Future<void> deleteItem(MangaLibraryItem item) async {
     if (item.type == MangaLibraryItemType.gallery) {
-      await galleryDownloadService.deleteGalleryByGid(item.gid);
+      await galleryDownloadService.deleteGalleryByGid(item.gid!);
+    } else if (item.type == MangaLibraryItemType.archive) {
+      await archiveDownloadService.deleteArchive(item.gid!);
     } else {
-      await archiveDownloadService.deleteArchive(item.gid);
+      await mangaLibraryImportService.deleteImportedItem(item);
     }
     update([libraryChangedId, similarityChangedId]);
   }
 
   Future<void> openReader(MangaLibraryItem item) async {
-    int readIndexRecord = await readProgressService.getReadProgress(item.gid);
+    if (item.type == MangaLibraryItemType.pdf) {
+      toast('pdfReaderNotSupported'.tr, isShort: false);
+      return;
+    }
+
+    if (item.type == MangaLibraryItemType.importedFolder) {
+      List<GalleryImage> images = await _getImportedFolderImages(item.localPath);
+      if (images.isEmpty) {
+        toast('noData'.tr);
+        return;
+      }
+
+      toRoute(
+        Routes.read,
+        arguments: ReadPageInfo(
+          mode: ReadMode.local,
+          galleryTitle: item.title,
+          initialIndex: 0,
+          pageCount: images.length,
+          readProgressRecordStorageKey: item.localPath,
+          images: images,
+          useSuperResolution: false,
+        ),
+      );
+      return;
+    }
+
+    int readIndexRecord = await readProgressService.getReadProgress(item.gid!);
 
     if (item.type == MangaLibraryItemType.gallery) {
       toRoute(
@@ -355,13 +408,13 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
           initialIndex: readIndexRecord,
           readProgressRecordStorageKey: item.gid.toString(),
           pageCount: item.pageCount,
-          useSuperResolution: superResolutionService.get(item.gid, SuperResolutionType.gallery) != null,
+          useSuperResolution: superResolutionService.get(item.gid!, SuperResolutionType.gallery) != null,
         ),
       );
       return;
     }
 
-    final images = await archiveDownloadService.getUnpackedImages(item.gid);
+    final images = await archiveDownloadService.getUnpackedImages(item.gid!);
     toRoute(
       Routes.read,
       arguments: ReadPageInfo(
@@ -374,9 +427,31 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         isOriginal: item.isOriginal,
         readProgressRecordStorageKey: item.gid.toString(),
         images: images,
-        useSuperResolution: superResolutionService.get(item.gid, SuperResolutionType.archive) != null,
+        useSuperResolution: superResolutionService.get(item.gid!, SuperResolutionType.archive) != null,
       ),
     );
+  }
+
+  Future<List<GalleryImage>> _getImportedFolderImages(String folderPath) async {
+    Directory directory = Directory(folderPath);
+    if (!await directory.exists()) {
+      return [];
+    }
+
+    List<File> imageFiles = await directory
+        .list(followLinks: false)
+        .where((entity) => entity is File && FileUtil.isImageExtension(entity.path))
+        .cast<File>()
+        .toList();
+    imageFiles.sort(FileUtil.naturalCompareFile);
+
+    return imageFiles
+        .map((file) => GalleryImage(
+              url: '',
+              path: path.isWithin(pathService.getVisibleDir().path, file.path) ? path.relative(file.path, from: pathService.getVisibleDir().path) : file.path,
+              downloadStatus: DownloadStatus.downloaded,
+            ))
+        .toList();
   }
 
   MangaSimilarityGroup? _compare(MangaLibraryItem first, MangaLibraryItem second) {

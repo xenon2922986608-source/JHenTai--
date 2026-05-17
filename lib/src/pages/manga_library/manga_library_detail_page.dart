@@ -29,11 +29,12 @@ class MangaLibraryDetailPage extends StatelessWidget {
       appBar: AppBar(
         title: Text('mangaLibraryDetail'.tr),
         actions: [
-          IconButton(
-            tooltip: 'switchToThisMangaInDownload'.tr,
-            icon: const Icon(Icons.download),
-            onPressed: () => _switchToDownload(arguments),
-          ),
+          if (!arguments.isImported)
+            IconButton(
+              tooltip: 'switchToThisMangaInDownload'.tr,
+              icon: const Icon(Icons.download),
+              onPressed: () => _switchToDownload(arguments),
+            ),
         ],
       ),
       body: GetBuilder<MangaLibraryService>(
@@ -55,6 +56,10 @@ class MangaLibraryDetailPage extends StatelessWidget {
       toast('archiveItemNoVisibleDownloadEntry'.tr, isShort: false);
       return;
     }
+    if (item.isImported || item.galleryUrl == null) {
+      toast('downloadItemNotFound'.tr);
+      return;
+    }
 
     mangaLibraryService.requestFocusInDownload(item);
     downloadPageGalleryTypeNotifier.value = null;
@@ -62,7 +67,7 @@ class MangaLibraryDetailPage extends StatelessWidget {
     toRoute(Routes.download);
     toRoute(
       Routes.details,
-      arguments: DetailsPageArgument(galleryUrl: GalleryUrl.parse(item.galleryUrl)),
+      arguments: DetailsPageArgument(galleryUrl: GalleryUrl.parse(item.galleryUrl!)),
       preventDuplicates: false,
     );
   }
@@ -127,7 +132,7 @@ class _MangaLibraryDetailBody extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              EHImage(galleryImage: item.cover, containerWidth: 150, containerHeight: 214, fit: BoxFit.cover),
+              _MangaLibraryDetailCover(item: item),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -141,7 +146,7 @@ class _MangaLibraryDetailBody extends StatelessWidget {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         EHGalleryCategoryTag(category: item.category, onTap: () => mangaLibraryService.setSelectedCategory(item.category)),
-                        Chip(label: Text(item.type == MangaLibraryItemType.gallery ? 'gallery'.tr : 'archive'.tr)),
+                        Chip(label: Text(_mangaLibraryTypeTitle(item.type))),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -183,11 +188,56 @@ class _MangaLibraryDetailBody extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
-    bool? result = await showDialog(context: context, builder: (_) => EHDialog(title: 'delete'.tr + '?'));
+    bool? result = await showDialog(
+      context: context,
+      builder: (_) => EHDialog(title: item.isImported ? 'removeImportedItemOnlyHint'.tr : 'delete'.tr + '?'),
+    );
     if (result == true) {
       await mangaLibraryService.deleteItem(item);
       backRoute(currentRoute: Routes.mangaLibraryDetail);
     }
+  }
+}
+
+class _MangaLibraryDetailCover extends StatelessWidget {
+  final MangaLibraryItem item;
+
+  const _MangaLibraryDetailCover({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    if (item.type == MangaLibraryItemType.pdf || (item.cover.path == null && item.cover.url.isEmpty)) {
+      return Container(
+        width: 150,
+        height: 214,
+        color: Theme.of(context).colorScheme.surfaceVariant,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.picture_as_pdf, size: 56, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(height: 8),
+              Text('PDF'.tr, style: Theme.of(context).textTheme.titleMedium),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return EHImage(galleryImage: item.cover, containerWidth: 150, containerHeight: 214, fit: BoxFit.cover);
+  }
+}
+
+String _mangaLibraryTypeTitle(MangaLibraryItemType type) {
+  switch (type) {
+    case MangaLibraryItemType.gallery:
+      return 'gallery'.tr;
+    case MangaLibraryItemType.archive:
+      return 'archive'.tr;
+    case MangaLibraryItemType.importedFolder:
+      return 'importedFolder'.tr;
+    case MangaLibraryItemType.pdf:
+      return 'PDF'.tr;
   }
 }
 

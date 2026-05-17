@@ -40,6 +40,7 @@ enum ConfigEnum {
   builtInBlockedUser('builtInBlockedUser'),
   mangaSimilarityIgnoredPair('mangaSimilarityIgnoredPair'),
   mangaLibraryDisplayMode('mangaLibraryDisplayMode'),
+  mangaLibraryImportedItem('mangaLibraryImportedItem'),
 
   /// page config
   downloadPageBodyType('downloadPageGalleryType'),
