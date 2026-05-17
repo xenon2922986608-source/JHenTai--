@@ -803,10 +803,9 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         List<Gallery> candidates = await searchTagFillCandidates(searchQuery);
         List<Gallery> exactMatches = candidates.where((candidate) => isExactMangaLibraryTitleMatch(item.title, candidate.title)).toList();
         if (exactMatches.isEmpty) {
-          batchTagFillProgress!
-            ..noExactMatchCount++
-            ..skippedCount++
-            ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'skipped_no_exact_match', reason: 'batchTagFillNoExactMatch'.tr));
+          batchTagFillProgress!.noExactMatchCount++;
+          batchTagFillProgress!.skippedCount++;
+          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'skipped_no_exact_match', reason: 'batchTagFillNoExactMatch'.tr));
           continue;
         }
         String successStatus = 'success_exact_single';
@@ -814,10 +813,9 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         if (exactMatches.length > 1) {
           _ChinesePreferredCandidateResult preferred = await _selectChinesePreferredExactMatch(item: item, exactMatches: exactMatches, searchQuery: searchQuery);
           if (preferred.status != 'success_exact_chinese_preferred' || preferred.candidate == null) {
-            batchTagFillProgress!
-              ..multipleExactMatchCount++
-              ..skippedCount++
-              ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: preferred.status, reason: preferred.reason));
+            batchTagFillProgress!.multipleExactMatchCount++;
+            batchTagFillProgress!.skippedCount++;
+            batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: preferred.status, reason: preferred.reason));
             continue;
           }
           selectedCandidate = preferred.candidate!;
@@ -831,27 +829,24 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         try {
           detail = preferredDetail ?? await fetchTagFillCandidateDetail(selectedCandidate);
         } catch (e) {
-          batchTagFillProgress!
-            ..failedDetailCount++
-            ..failureCount++
-            ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_details', reason: e.toString()));
+          batchTagFillProgress!.failedDetailCount++;
+          batchTagFillProgress!.failureCount++;
+          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_details', reason: e.toString()));
           continue;
         }
 
         String detailTitle = detail.japaneseTitle ?? detail.rawTitle;
         bool detailTitleMatches = isExactMangaLibraryTitleMatch(item.title, detail.rawTitle) || (detail.japaneseTitle != null && isExactMangaLibraryTitleMatch(item.title, detail.japaneseTitle!));
         if (!detailTitleMatches) {
-          batchTagFillProgress!
-            ..noExactMatchCount++
-            ..skippedCount++
-            ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'skipped_no_exact_match', reason: 'batchTagFillDetailTitleMismatch'.tr));
+          batchTagFillProgress!.noExactMatchCount++;
+          batchTagFillProgress!.skippedCount++;
+          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'skipped_no_exact_match', reason: 'batchTagFillDetailTitleMismatch'.tr));
           continue;
         }
         if (tagMap2TagString(detail.tags).isEmpty) {
-          batchTagFillProgress!
-            ..failedDetailCount++
-            ..failureCount++
-            ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_details', reason: 'candidateHasNoTags'.tr));
+          batchTagFillProgress!.failedDetailCount++;
+          batchTagFillProgress!.failureCount++;
+          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_details', reason: 'candidateHasNoTags'.tr));
           continue;
         }
 
@@ -859,20 +854,17 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         update([libraryChangedId]);
         try {
           await fillMissingTagsFromDetail(item, detail);
-          batchTagFillProgress!
-            ..successCount++
-            ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: successStatus, reason: detailTitle));
+          batchTagFillProgress!.successCount++;
+          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: successStatus, reason: detailTitle));
         } catch (e) {
-          batchTagFillProgress!
-            ..failedWriteCount++
-            ..failureCount++
-            ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_write', reason: e.toString()));
+          batchTagFillProgress!.failedWriteCount++;
+          batchTagFillProgress!.failureCount++;
+          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_write', reason: e.toString()));
         }
       } catch (e) {
-        batchTagFillProgress!
-          ..failedSearchCount++
-          ..failureCount++
-          ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_search', reason: e.toString()));
+        batchTagFillProgress!.failedSearchCount++;
+        batchTagFillProgress!.failureCount++;
+        batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_search', reason: e.toString()));
       } finally {
         update([libraryChangedId]);
         await Future<void>.delayed(const Duration(milliseconds: 300));
