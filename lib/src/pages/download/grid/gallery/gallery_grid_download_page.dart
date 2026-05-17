@@ -1,4 +1,8 @@
 import 'dart:math';
+import 'package:jhentai/src/pages/download/download_page_switch_button.dart';
+import 'package:jhentai/src/model/manga_library_item.dart';
+import 'package:jhentai/src/service/manga_library_service.dart';
+import 'package:jhentai/src/utils/toast_util.dart';
 
 import 'package:blur/blur.dart';
 import 'package:flutter/material.dart';
@@ -48,7 +52,9 @@ class GalleryGridDownloadPage extends StatelessWidget with Scroll2TopPageMixin, 
 
   @override
   List<Widget> buildAppBarActions(BuildContext context) {
+    _handlePendingDownloadFocus();
     return [
+      const DownloadPageSwitchButton(targetGalleryType: DownloadPageGalleryType.library),
       GetBuilder<GalleryGridDownloadPageLogic>(
         global: false,
         init: logic,
@@ -124,6 +130,44 @@ class GalleryGridDownloadPage extends StatelessWidget with Scroll2TopPageMixin, 
     ];
   }
 
+
+  void _handlePendingDownloadFocus() {
+    MangaLibraryFocusRequest? request = mangaLibraryService.consumePendingDownloadFocusRequest();
+    if (request == null) {
+      return;
+    }
+    if (request.type != MangaLibraryItemType.gallery) {
+      toast('archiveItemNoVisibleDownloadEntry'.tr, isShort: false);
+      return;
+    }
+
+    int index = logic.downloadService.gallerys.indexWhere((gallery) => gallery.gid == request.gid && (request.token?.isEmpty ?? true || gallery.token == request.token));
+    if (index == -1) {
+      toast('downloadItemNotFound'.tr);
+      return;
+    }
+
+    GalleryDownloadedData gallery = logic.downloadService.gallerys[index];
+    String group = logic.downloadService.galleryDownloadInfos[gallery.gid]!.group;
+
+    Get.engine.addPostFrameCallback((_) {
+      logic.enterGroup(group);
+      Get.engine.addPostFrameCallback((_) {
+        int groupIndex = state.galleryObjectsWithGroup(group).indexWhere((candidate) => candidate.gid == gallery.gid);
+        if (groupIndex >= 0 && state.galleryScrollController.hasClients) {
+          double offset = (groupIndex ~/ 3) * 260;
+          state.galleryScrollController.animateTo(
+            offset.clamp(0, state.galleryScrollController.position.maxScrollExtent).toDouble(),
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOut,
+          );
+        }
+        mangaLibraryService.highlightDownloadItem(MangaLibraryItem.buildStableKey(type: MangaLibraryItemType.gallery, gid: gallery.gid, token: gallery.token));
+        logic.update(['${logic.itemCardId}::${gallery.gid}']);
+      });
+    });
+  }
+
   @override
   Widget? buildGridBottomAppBar(BuildContext context) {
     return buildBottomAppBar();
@@ -188,9 +232,14 @@ class GalleryGridDownloadPage extends StatelessWidget with Scroll2TopPageMixin, 
           id: '${logic.downloadService.galleryDownloadSuccessId}::${gallery.gid}',
           builder: (_) {
             if (logic.downloadService.galleryDownloadInfos[gallery.gid]?.downloadProgress.downloadStatus == DownloadStatus.downloaded) {
-              if (state.selectedGids.contains(gallery.gid)) {
+              bool isHighlighted = mangaLibraryService.highlightedDownloadItemKey == MangaLibraryItem.buildStableKey(type: MangaLibraryItemType.gallery, gid: gallery.gid, token: gallery.token);
+              if (state.selectedGids.contains(gallery.gid) || isHighlighted) {
                 return Stack(
-                  children: [_buildCover(gallery), _buildSelectedIcon()],
+                  children: [
+                    _buildCover(gallery),
+                    if (isHighlighted) Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.primary, width: 3)))),
+                    if (state.selectedGids.contains(gallery.gid)) _buildSelectedIcon(),
+                  ],
                 );
               } else {
                 return _buildCover(gallery);
