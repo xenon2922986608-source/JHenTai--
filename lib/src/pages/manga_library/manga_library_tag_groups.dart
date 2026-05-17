@@ -74,13 +74,13 @@ class _NoTagsHint extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: dense ? 6 : 8, vertical: dense ? 3 : 5),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceVariant.withOpacity(0.65),
+        color: mangaLibraryService.filterMissingTags ? colorScheme.primaryContainer : colorScheme.surfaceVariant.withOpacity(0.65),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colorScheme.outlineVariant),
+        border: Border.all(color: mangaLibraryService.filterMissingTags ? colorScheme.primary : colorScheme.outlineVariant, width: mangaLibraryService.filterMissingTags ? 1.4 : 1),
       ),
       child: Text(
-        'noTags'.tr,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colorScheme.onSurfaceVariant),
+        mangaLibraryService.filterMissingTags ? '✓ ${'noTags'.tr}' : 'noTags'.tr,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: mangaLibraryService.filterMissingTags ? colorScheme.onPrimaryContainer : colorScheme.onSurfaceVariant, fontWeight: mangaLibraryService.filterMissingTags ? FontWeight.w600 : FontWeight.normal),
       ),
     );
   }

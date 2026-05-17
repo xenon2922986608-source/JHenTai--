@@ -190,12 +190,31 @@ class _MangaLibraryDetailBody extends StatelessWidget {
   Future<void> _confirmDelete(BuildContext context) async {
     bool? result = await showDialog(
       context: context,
-      builder: (_) => EHDialog(title: item.isImported ? 'removeImportedItemOnlyHint'.tr : 'delete'.tr + '?'),
+      builder: (_) => EHDialog(title: 'delete'.tr + '?', content: _deleteConfirmContent(item)),
     );
     if (result == true) {
-      await mangaLibraryService.deleteItem(item);
-      backRoute(currentRoute: Routes.mangaLibraryDetail);
+      try {
+        MangaLibraryDeleteResult deleteResult = await mangaLibraryService.deleteItem(item);
+        if (deleteResult.missingOriginalPaths.isNotEmpty) {
+          toast('originalFileNotFoundDeletedRecord'.tr, isShort: false);
+        } else {
+          toast('success'.tr);
+        }
+        backRoute(currentRoute: Routes.mangaLibraryDetail);
+      } catch (e) {
+        toast('${'operationFailed'.tr}: $e', isShort: false);
+      }
     }
+  }
+
+  String _deleteConfirmContent(MangaLibraryItem item) {
+    if (item.type == MangaLibraryItemType.importedFolder) {
+      return 'deleteImportedFolderOriginalHint'.tr;
+    }
+    if (item.type == MangaLibraryItemType.pdf) {
+      return 'deletePdfOriginalHint'.tr;
+    }
+    return 'deleteDownloadedMangaHint'.tr;
   }
 }
 

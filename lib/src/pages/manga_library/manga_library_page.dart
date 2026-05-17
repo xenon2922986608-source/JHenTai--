@@ -34,7 +34,7 @@ class MangaLibraryPage extends StatelessWidget {
           GetBuilder<MangaLibraryService>(
             id: MangaLibraryService.libraryChangedId,
             builder: (_) {
-              int count = mangaLibraryService.similarityGroups.length;
+              int count = mangaLibraryService.similarityGroupCount;
               return Badge(
                 isLabelVisible: count > 0,
                 label: Text(count.toString()),
@@ -45,6 +45,20 @@ class MangaLibraryPage extends StatelessWidget {
                 ),
               );
             },
+          ),
+          GetBuilder<MangaLibraryService>(
+            id: MangaLibraryService.libraryChangedId,
+            builder: (_) => mangaLibraryService.selectionMode
+                ? IconButton(
+                    tooltip: 'cancel'.tr,
+                    icon: const Icon(Icons.close),
+                    onPressed: mangaLibraryService.exitSelectionMode,
+                  )
+                : IconButton(
+                    tooltip: 'select'.tr,
+                    icon: const Icon(Icons.checklist),
+                    onPressed: () => mangaLibraryService.enterSelectionMode(),
+                  ),
           ),
           IconButton(
             tooltip: 'search'.tr,
@@ -94,6 +108,7 @@ class MangaLibraryPage extends StatelessWidget {
     return Column(
       children: [
         _buildLibraryToolbar(items.length),
+        if (mangaLibraryService.selectionMode) _buildSelectionToolbar(context, items),
         if (mangaLibraryService.hasActiveFilters) _buildActiveFilters(),
         Expanded(
           child: items.isEmpty ? Center(child: Text('noMangaLibrarySearchResult'.tr)) : _buildItemList(items),
@@ -266,6 +281,37 @@ class MangaLibraryPage extends StatelessWidget {
     );
   }
 
+  Widget _buildSelectionToolbar(BuildContext context, List<MangaLibraryItem> filteredItems) {
+    int selectedCount = mangaLibraryService.selectedItemKeys.length;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Chip(avatar: const Icon(Icons.check_circle, size: 18), label: Text('${'selectedItems'.tr}: $selectedCount')),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.select_all),
+            label: Text('selectAllFiltered'.tr),
+            onPressed: filteredItems.isEmpty ? null : mangaLibraryService.selectAllFilteredItems,
+          ),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.clear_all),
+            label: Text('clearSelection'.tr),
+            onPressed: selectedCount == 0 ? null : mangaLibraryService.clearItemSelection,
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.delete_forever),
+            label: Text('deleteSelected'.tr),
+            onPressed: selectedCount == 0 ? null : () => _confirmBatchDelete(context),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildActiveFilters() {
     return Container(
       width: double.infinity,
@@ -307,6 +353,57 @@ class MangaLibraryPage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmBatchDelete(BuildContext context) async {
+    List<MangaLibraryItem> items = mangaLibraryService.selectedItems;
+    if (items.isEmpty) {
+      return;
+    }
+
+    MangaLibraryDeleteResult summary = MangaLibraryDeleteResult();
+    for (MangaLibraryItem item in items) {
+      summary.addType(item.type);
+    }
+
+    bool? result = await showDialog(
+      context: context,
+      builder: (_) => EHDialog(title: 'deleteSelected'.tr + '?', content: _batchDeleteConfirmContent(summary)),
+    );
+    if (result != true) {
+      return;
+    }
+
+    MangaLibraryBatchDeleteResult deleteResult = await mangaLibraryService.deleteItems(items);
+    String message = '${'batchDeleteFinished'.tr}: ${'success'.tr} ${deleteResult.successCount}, ${'failed'.tr} ${deleteResult.failureCount}';
+    if (deleteResult.missingOriginalPaths.isNotEmpty) {
+      message += '\n${'originalFileNotFoundDeletedRecord'.tr}: ${deleteResult.missingOriginalPaths.length}';
+    }
+    if (deleteResult.failures.isNotEmpty) {
+      message += '\n${deleteResult.failures.take(3).join('\n')}';
+    }
+    toast(message, isShort: false);
+  }
+
+  String _deleteConfirmContent(MangaLibraryItem item) {
+    if (item.type == MangaLibraryItemType.importedFolder) {
+      return 'deleteImportedFolderOriginalHint'.tr;
+    }
+    if (item.type == MangaLibraryItemType.pdf) {
+      return 'deletePdfOriginalHint'.tr;
+    }
+    return 'deleteDownloadedMangaHint'.tr;
+  }
+
+  String _batchDeleteConfirmContent(MangaLibraryDeleteResult summary) {
+    return [
+      'batchDeleteConfirmHint'.tr,
+      '${'gallery'.tr}: ${summary.galleryCount}',
+      '${'archive'.tr}: ${summary.archiveCount}',
+      '${'importedFolder'.tr}: ${summary.importedFolderCount}',
+      '${'PDF'.tr}: ${summary.pdfCount}',
+      'deleteBatchOriginalFilesHint'.tr,
+    ].join('\n');
   }
 
   Future<void> _showSearchDialog(BuildContext context) async {
@@ -390,8 +487,28 @@ class _MangaLibraryCard extends StatelessWidget {
       shape: isHighlighted ? RoundedRectangleBorder(side: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2), borderRadius: BorderRadius.circular(12)) : null,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => toRoute(Routes.mangaLibraryDetail, arguments: item, preventDuplicates: false),
-        child: displayMode == MangaLibraryDisplayMode.cover ? _buildCoverMode(context) : _buildListMode(context),
+        onTap: () {
+          if (mangaLibraryService.selectionMode) {
+            mangaLibraryService.toggleItemSelection(item);
+            return;
+          }
+          toRoute(Routes.mangaLibraryDetail, arguments: item, preventDuplicates: false);
+        },
+        onLongPress: () => mangaLibraryService.enterSelectionMode(initialItem: item),
+        child: Stack(
+          children: [
+            displayMode == MangaLibraryDisplayMode.cover ? _buildCoverMode(context) : _buildListMode(context),
+            if (mangaLibraryService.selectionMode)
+              Positioned(
+                top: 4,
+                left: 4,
+                child: Checkbox(
+                  value: mangaLibraryService.isItemSelected(item),
+                  onChanged: (_) => mangaLibraryService.toggleItemSelection(item),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -443,6 +560,7 @@ class _MangaLibraryCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (mangaLibraryService.selectionMode) const SizedBox(width: 32),
           _MangaLibraryCover(item: item, width: coverWidth, height: coverHeight, fit: BoxFit.cover),
           const SizedBox(width: 10),
           Expanded(
@@ -493,10 +611,19 @@ class _MangaLibraryCard extends StatelessWidget {
   Future<void> _confirmDelete(BuildContext context, MangaLibraryItem item) async {
     bool? result = await showDialog(
       context: context,
-      builder: (_) => EHDialog(title: item.isImported ? 'removeImportedItemOnlyHint'.tr : 'delete'.tr + '?'),
+      builder: (_) => EHDialog(title: 'delete'.tr + '?', content: _deleteConfirmContent(item)),
     );
     if (result == true) {
-      await mangaLibraryService.deleteItem(item);
+      try {
+        MangaLibraryDeleteResult deleteResult = await mangaLibraryService.deleteItem(item);
+        if (deleteResult.missingOriginalPaths.isNotEmpty) {
+          toast('originalFileNotFoundDeletedRecord'.tr, isShort: false);
+        } else {
+          toast('success'.tr);
+        }
+      } catch (e) {
+        toast('${'operationFailed'.tr}: $e', isShort: false);
+      }
     }
   }
 }

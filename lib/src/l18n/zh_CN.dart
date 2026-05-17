@@ -99,6 +99,18 @@ class zh_CN {
       'PDF': 'PDF',
       'pdfReaderNotSupported': '当前版本暂不支持 PDF 阅读。',
       'removeImportedItemOnlyHint': '仅从漫画库移除？不会删除本地文件。',
+      'select': '选择',
+      'selectedItems': '已选择',
+      'selectAllFiltered': '全选当前筛选',
+      'clearSelection': '清空选择',
+      'deleteSelected': '删除已选',
+      'deleteImportedFolderOriginalHint': '将从漫画库移除此导入文件夹，并删除本地文件夹及其中所有文件。此操作不可撤销。',
+      'deletePdfOriginalHint': '将从漫画库移除此 PDF，并删除本地 PDF 文件。此操作不可撤销。',
+      'deleteDownloadedMangaHint': '将通过现有下载删除逻辑删除此下载条目及其本地文件。',
+      'batchDeleteConfirmHint': '将删除以下已选择的漫画库条目：',
+      'deleteBatchOriginalFilesHint': 'gallery/archive 会使用现有下载删除逻辑；importedFolder/pdf 会删除原始本地文件。',
+      'batchDeleteFinished': '批量删除完成',
+      'originalFileNotFoundDeletedRecord': '原文件不存在，已移除漫画库记录。',
 
       /// unlock page
       'localizedReason': '请验证以继续',

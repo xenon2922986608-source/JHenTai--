@@ -38,6 +38,14 @@ jobs:
       # Checkout branch
       - name: Checkout
         uses: actions/checkout@v3
+      # Setup JDK
+      - name: Setup JDK 17 (Android)
+        if: matrix.target == 'Android'
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: gradle
       # Add Android keystore
       - name: Setup Android keystore
         if: matrix.target == 'Android'
@@ -46,15 +54,17 @@ jobs:
           ENCODED_KEYSTORE: ${{ secrets.ENCODED_KEYSTORE }}
           KEY_PROPERTIES: ${{ secrets.KEY_PROPERTIES }}
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p android/app
 
-          if [ -n "$ENCODED_KEYSTORE" ] && [ -n "$KEY_PROPERTIES" ]; then
-            echo "$ENCODED_KEYSTORE" | base64 -di > android/app/upload-keystore.jks
-            printf '%s\n' "$KEY_PROPERTIES" > android/key.properties
+          if [ -n "${ENCODED_KEYSTORE:-}" ] && [ -n "${KEY_PROPERTIES:-}" ]; then
+            printf '%s' "$ENCODED_KEYSTORE" | base64 --decode > android/app/upload-keystore.jks
+            printf '%s\n' "$KEY_PROPERTIES" | tr -d '\r' > android/key.properties
             echo "Using repository Android signing config"
+            echo "ANDROID_SIGNING_CONFIG_SOURCE=repository" >> "$GITHUB_ENV"
           else
             echo "Using temporary CI Android signing config"
+            echo "ANDROID_SIGNING_CONFIG_SOURCE=temporary" >> "$GITHUB_ENV"
 
             keytool -genkeypair \
               -v \
@@ -67,13 +77,71 @@ jobs:
               -alias ci \
               -dname "CN=CI,O=Fork,C=US"
 
-            cat > android/key.properties <<'EOF'
-          storePassword=android
-          keyPassword=android
-          keyAlias=ci
-          storeFile=ci-upload-keystore.jks
-          EOF
+            printf '%s\n' \
+              'storePassword=android' \
+              'keyPassword=android' \
+              'keyAlias=ci' \
+              'storeFile=ci-upload-keystore.jks' > android/key.properties
           fi
+      # Diagnose Android signing identity without printing secrets
+      - name: Diagnose Android signing identity
+        if: matrix.target == 'Android'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          key_properties_file="android/key.properties"
+          if [ ! -f "$key_properties_file" ]; then
+            echo "android/key.properties was not generated" >&2
+            exit 1
+          fi
+
+          get_property() {
+            awk -F= -v key="$1" '
+              {
+                property_name = $1
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", property_name)
+                if (property_name == key) {
+                  sub(/^[^=]*=/, "")
+                  gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+                  print
+                  exit
+                }
+              }
+            ' "$key_properties_file"
+          }
+
+          store_file="$(get_property storeFile)"
+          key_alias="$(get_property keyAlias)"
+          store_password="$(get_property storePassword)"
+
+          if [ -z "$store_file" ] || [ -z "$key_alias" ] || [ -z "$store_password" ]; then
+            echo "Android signing config is missing storeFile, keyAlias, or storePassword" >&2
+            exit 1
+          fi
+
+          if [ "${ANDROID_SIGNING_CONFIG_SOURCE:-unknown}" = "repository" ] && [ "$store_file" != "upload-keystore.jks" ]; then
+            echo "Repository KEY_PROPERTIES must use storeFile=upload-keystore.jks so android/app/build.gradle resolves android/app/upload-keystore.jks" >&2
+            exit 1
+          fi
+
+          if [[ "$store_file" = /* ]]; then
+            resolved_store_file="$store_file"
+          else
+            resolved_store_file="android/app/$store_file"
+          fi
+
+          if [ ! -f "$resolved_store_file" ]; then
+            echo "Android keystore file does not exist at resolved path: $resolved_store_file" >&2
+            exit 1
+          fi
+
+          echo "Android signing config source: ${ANDROID_SIGNING_CONFIG_SOURCE:-unknown}"
+          echo "Android signing storeFile: $store_file"
+          echo "Android signing keyAlias: $key_alias"
+
+          keytool -list -v -keystore "$resolved_store_file" -alias "$key_alias" -storepass "$store_password" \
+            | awk '/Alias name:/{ print "Android signing " $0 } /SHA256:/{ print "Android signing certificate " $0; found=1; exit } END { if (!found) exit 1 }'
       # Add JHenTai api serret
       - name: Setup JHenTai API Secret
         shell: bash
@@ -112,14 +180,6 @@ jobs:
       # Output Flutter Version
       - name: Output Flutter Version
         run: flutter --version
-      # Setup JDK
-      - name: Setup JDK 17 (Android)
-        if: matrix.target == 'Android'
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-          cache: gradle
       # Flutter Pub Get
       - name: Flutter Pub Get
         run: |

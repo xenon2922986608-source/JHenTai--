@@ -99,6 +99,18 @@ class ko_KR {
       'PDF': 'PDF',
       'pdfReaderNotSupported': 'PDF reading will be supported in a future version.',
       'removeImportedItemOnlyHint': 'Remove from Manga Library only? Local files will not be deleted.',
+      'select': 'Select',
+      'selectedItems': 'Selected',
+      'selectAllFiltered': 'Select all filtered',
+      'clearSelection': 'Clear selection',
+      'deleteSelected': 'Delete selected',
+      'deleteImportedFolderOriginalHint': 'This imported folder will be removed from Manga Library, and the local folder and all files inside it will be deleted. This cannot be undone.',
+      'deletePdfOriginalHint': 'This PDF will be removed from Manga Library, and the local PDF file will be deleted. This cannot be undone.',
+      'deleteDownloadedMangaHint': 'This downloaded item will be deleted using the existing download deletion logic, including its local files.',
+      'batchDeleteConfirmHint': 'The selected Manga Library items will be deleted:',
+      'deleteBatchOriginalFilesHint': 'Gallery/archive items use the existing download deletion logic. Imported folders/PDFs will delete their original local files.',
+      'batchDeleteFinished': 'Batch delete finished',
+      'originalFileNotFoundDeletedRecord': 'Original file was not found. The Manga Library record has been removed.',
 
       /// schedule
       'dawnOfaNewDay': 'It is the dawn of a new day!',

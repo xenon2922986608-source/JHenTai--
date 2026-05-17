@@ -81,9 +81,28 @@ class MangaLibraryImportService extends GetxController with JHLifeCircleBeanErro
     return result;
   }
 
-  Future<void> deleteImportedItem(MangaLibraryItem item) async {
+  Future<bool> deleteImportedItem(MangaLibraryItem item, {required bool deleteOriginalFile}) async {
+    bool originalExisted = false;
+
+    if (deleteOriginalFile) {
+      if (item.type == MangaLibraryItemType.importedFolder) {
+        Directory directory = Directory(item.localPath);
+        originalExisted = await directory.exists();
+        if (originalExisted) {
+          await directory.delete(recursive: true);
+        }
+      } else if (item.type == MangaLibraryItemType.pdf) {
+        File file = File(item.localPath);
+        originalExisted = await file.exists();
+        if (originalExisted) {
+          await file.delete();
+        }
+      }
+    }
+
     await localConfigService.delete(configKey: ConfigEnum.mangaLibraryImportedItem, subConfigKey: item.stableKey);
     await refreshImportedItems();
+    return originalExisted;
   }
 
   Future<void> _scanDirectory(Directory directory, DownloadDirectoryScanResult result) async {

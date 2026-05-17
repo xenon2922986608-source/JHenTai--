@@ -6,8 +6,19 @@ import 'package:jhentai/src/service/manga_library_service.dart';
 import 'package:jhentai/src/widget/eh_alert_dialog.dart';
 import 'package:jhentai/src/widget/eh_image.dart';
 
-class MangaSimilarityPage extends StatelessWidget {
+class MangaSimilarityPage extends StatefulWidget {
   const MangaSimilarityPage({Key? key}) : super(key: key);
+
+  @override
+  State<MangaSimilarityPage> createState() => _MangaSimilarityPageState();
+}
+
+class _MangaSimilarityPageState extends State<MangaSimilarityPage> {
+  @override
+  void initState() {
+    super.initState();
+    mangaLibraryService.refreshSimilarityGroups();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,6 +28,9 @@ class MangaSimilarityPage extends StatelessWidget {
         id: MangaLibraryService.similarityChangedId,
         builder: (_) {
           List<MangaSimilarityGroup> groups = mangaLibraryService.similarityGroups;
+          if (mangaLibraryService.isRefreshingSimilarityGroups) {
+            return const Center(child: CircularProgressIndicator());
+          }
           if (groups.isEmpty) {
             return Center(child: Text('noData'.tr));
           }
@@ -104,12 +118,23 @@ class _SimilarityItem extends StatelessWidget {
   Future<void> _confirmDelete(BuildContext context, MangaLibraryItem item) async {
     bool? result = await showDialog(
       context: context,
-      builder: (_) => EHDialog(title: item.isImported ? 'removeImportedItemOnlyHint'.tr : 'delete'.tr + '?'),
+      builder: (_) => EHDialog(title: 'delete'.tr + '?', content: _deleteConfirmContent(item)),
     );
     if (result == true) {
       await mangaLibraryService.deleteItem(item);
     }
   }
+
+  String _deleteConfirmContent(MangaLibraryItem item) {
+    if (item.type == MangaLibraryItemType.importedFolder) {
+      return 'deleteImportedFolderOriginalHint'.tr;
+    }
+    if (item.type == MangaLibraryItemType.pdf) {
+      return 'deletePdfOriginalHint'.tr;
+    }
+    return 'deleteDownloadedMangaHint'.tr;
+  }
+
 }
 
 class _SimilarityCover extends StatelessWidget {
