@@ -46,6 +46,9 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   final Set<String> ignoredSimilarityPairs = {};
   final Set<String> selectedItemKeys = {};
   final Map<String, MangaLibraryItemUserData> _userData = {};
+  MangaLibraryBatchTagFillProgress? batchTagFillProgress;
+  bool _cancelBatchTagFill = false;
+  final Map<int, GalleryDetail> _batchPreferredDetails = {};
 
   String searchKeyword = '';
   MangaLibraryItemType? selectedType;
@@ -599,8 +602,8 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   Future<void> ignoreSimilarityGroup(MangaSimilarityGroup group) async {
     ignoredSimilarityPairs.add(group.pairKey);
     await localConfigService.write(configKey: ConfigEnum.mangaSimilarityIgnoredPair, subConfigKey: group.pairKey, value: DateTime.now().toString());
-    _invalidateSimilarityGroups();
-    await refreshSimilarityGroups(force: true);
+    _cachedSimilarityGroups.removeWhere((candidate) => candidate.pairKey == group.pairKey);
+    update([similarityChangedId]);
   }
 
   Future<MangaLibraryDeleteResult> deleteItem(MangaLibraryItem item) async {
@@ -749,6 +752,205 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
       }
     }
     return candidates.values.take(limit).toList();
+  }
+
+
+  List<MangaLibraryItem> get batchTagFillTargets => items.where((item) => item.tags.isEmpty && item.title.trim().isNotEmpty).toList();
+
+  void cancelBatchTagFill() {
+    _cancelBatchTagFill = true;
+    batchTagFillProgress?.status = MangaLibraryBatchTagFillStatus.cancelling;
+    update([libraryChangedId]);
+  }
+
+  Future<MangaLibraryBatchTagFillProgress> startBatchFillMissingTags() async {
+    if (batchTagFillProgress?.isRunning == true) {
+      return batchTagFillProgress!;
+    }
+
+    List<MangaLibraryItem> targets = batchTagFillTargets;
+    batchTagFillProgress = MangaLibraryBatchTagFillProgress(totalCount: targets.length);
+    _cancelBatchTagFill = false;
+    _batchPreferredDetails.clear();
+    update([libraryChangedId]);
+
+    if (targets.isEmpty) {
+      batchTagFillProgress!.status = MangaLibraryBatchTagFillStatus.completed;
+      update([libraryChangedId]);
+      return batchTagFillProgress!;
+    }
+
+    for (int index = 0; index < targets.length; index++) {
+      if (_cancelBatchTagFill) {
+        batchTagFillProgress!.status = MangaLibraryBatchTagFillStatus.cancelled;
+        batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: targets[index].title, searchQuery: '', status: 'cancelled', reason: 'cancelled'.tr));
+        break;
+      }
+
+      MangaLibraryItem item = targets[index];
+      String cleanedTitle = cleanMangaLibraryTitleForTagFill(item.title);
+      String searchQuery = buildEhSearchQueryFromLibraryTitle(item.title);
+      batchTagFillProgress!
+        ..currentIndex = index + 1
+        ..currentTitle = item.title
+        ..currentCleanedTitle = cleanedTitle
+        ..currentSearchQuery = searchQuery
+        ..status = MangaLibraryBatchTagFillStatus.searching;
+      log.info('Manga library batch tag fill search: original=${item.title}, cleaned=$cleanedTitle, query=$searchQuery');
+      update([libraryChangedId]);
+
+      try {
+        List<Gallery> candidates = await searchTagFillCandidates(searchQuery);
+        List<Gallery> exactMatches = candidates.where((candidate) => isExactMangaLibraryTitleMatch(item.title, candidate.title)).toList();
+        if (exactMatches.isEmpty) {
+          batchTagFillProgress!
+            ..noExactMatchCount++
+            ..skippedCount++
+            ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'skipped_no_exact_match', reason: 'batchTagFillNoExactMatch'.tr));
+          continue;
+        }
+        String successStatus = 'success_exact_single';
+        Gallery selectedCandidate = exactMatches.single;
+        if (exactMatches.length > 1) {
+          _ChinesePreferredCandidateResult preferred = await _selectChinesePreferredExactMatch(item: item, exactMatches: exactMatches, searchQuery: searchQuery);
+          if (preferred.status != 'success_exact_chinese_preferred' || preferred.candidate == null) {
+            batchTagFillProgress!
+              ..multipleExactMatchCount++
+              ..skippedCount++
+              ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: preferred.status, reason: preferred.reason));
+            continue;
+          }
+          selectedCandidate = preferred.candidate!;
+          successStatus = preferred.status;
+        }
+
+        GalleryDetail? preferredDetail = _batchPreferredDetails.remove(selectedCandidate.gid);
+        batchTagFillProgress!.status = MangaLibraryBatchTagFillStatus.fetchingDetail;
+        update([libraryChangedId]);
+        GalleryDetail detail;
+        try {
+          detail = preferredDetail ?? await fetchTagFillCandidateDetail(selectedCandidate);
+        } catch (e) {
+          batchTagFillProgress!
+            ..failedDetailCount++
+            ..failureCount++
+            ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_details', reason: e.toString()));
+          continue;
+        }
+
+        String detailTitle = detail.japaneseTitle ?? detail.rawTitle;
+        bool detailTitleMatches = isExactMangaLibraryTitleMatch(item.title, detail.rawTitle) || (detail.japaneseTitle != null && isExactMangaLibraryTitleMatch(item.title, detail.japaneseTitle!));
+        if (!detailTitleMatches) {
+          batchTagFillProgress!
+            ..noExactMatchCount++
+            ..skippedCount++
+            ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'skipped_no_exact_match', reason: 'batchTagFillDetailTitleMismatch'.tr));
+          continue;
+        }
+        if (tagMap2TagString(detail.tags).isEmpty) {
+          batchTagFillProgress!
+            ..failedDetailCount++
+            ..failureCount++
+            ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_details', reason: 'candidateHasNoTags'.tr));
+          continue;
+        }
+
+        batchTagFillProgress!.status = MangaLibraryBatchTagFillStatus.writingTags;
+        update([libraryChangedId]);
+        try {
+          await fillMissingTagsFromDetail(item, detail);
+          batchTagFillProgress!
+            ..successCount++
+            ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: successStatus, reason: detailTitle));
+        } catch (e) {
+          batchTagFillProgress!
+            ..failedWriteCount++
+            ..failureCount++
+            ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_write', reason: e.toString()));
+        }
+      } catch (e) {
+        batchTagFillProgress!
+          ..failedSearchCount++
+          ..failureCount++
+          ..records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_search', reason: e.toString()));
+      } finally {
+        update([libraryChangedId]);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      }
+    }
+
+    if (_cancelBatchTagFill) {
+      batchTagFillProgress!.status = MangaLibraryBatchTagFillStatus.cancelled;
+    } else if (batchTagFillProgress!.status != MangaLibraryBatchTagFillStatus.cancelled) {
+      batchTagFillProgress!.status = MangaLibraryBatchTagFillStatus.completed;
+    }
+    refreshLibraryItems();
+    update([libraryChangedId]);
+    return batchTagFillProgress!;
+  }
+
+
+  Future<_ChinesePreferredCandidateResult> _selectChinesePreferredExactMatch({required MangaLibraryItem item, required List<Gallery> exactMatches, required String searchQuery}) async {
+    int unknownCount = 0;
+    List<Gallery> chineseCandidates = [];
+    _batchPreferredDetails.clear();
+
+    for (Gallery candidate in exactMatches) {
+      if (!isExactMangaLibraryTitleMatch(item.title, candidate.title)) {
+        continue;
+      }
+
+      bool? hasChineseLanguage = _candidateHasChineseLanguageFromSearchResult(candidate);
+      if (hasChineseLanguage == null) {
+        batchTagFillProgress!.status = MangaLibraryBatchTagFillStatus.fetchingDetail;
+        update([libraryChangedId]);
+        try {
+          GalleryDetail detail = await fetchTagFillCandidateDetail(candidate);
+          bool detailTitleMatches = isExactMangaLibraryTitleMatch(item.title, detail.rawTitle) || (detail.japaneseTitle != null && isExactMangaLibraryTitleMatch(item.title, detail.japaneseTitle!));
+          if (!detailTitleMatches) {
+            unknownCount++;
+            continue;
+          }
+          _batchPreferredDetails[candidate.gid] = detail;
+          hasChineseLanguage = mangaLibraryTagsContainChineseLanguage(detail.tags.values.flattened.map((tag) => tag.tagData));
+        } catch (e, stack) {
+          unknownCount++;
+          log.error('Batch tag fill candidate language detection failed: ${candidate.galleryUrl.url}', e, stack);
+          continue;
+        }
+      }
+
+      if (hasChineseLanguage) {
+        chineseCandidates.add(candidate);
+      }
+    }
+
+    if (chineseCandidates.length > 1) {
+      _batchPreferredDetails.clear();
+      return _ChinesePreferredCandidateResult(status: 'skipped_multiple_chinese', reason: 'batchTagFillMultipleChinese'.tr);
+    }
+    if (unknownCount > 0) {
+      _batchPreferredDetails.clear();
+      return _ChinesePreferredCandidateResult(status: 'skipped_multiple_unknown_language', reason: 'batchTagFillUnknownLanguage'.tr);
+    }
+    if (chineseCandidates.length == 1) {
+      return _ChinesePreferredCandidateResult(candidate: chineseCandidates.single, status: 'success_exact_chinese_preferred', reason: 'batchTagFillChinesePreferred'.tr);
+    }
+    _batchPreferredDetails.clear();
+    return _ChinesePreferredCandidateResult(status: 'skipped_multiple_no_chinese', reason: 'batchTagFillNoChinese'.tr);
+  }
+
+  bool? _candidateHasChineseLanguageFromSearchResult(Gallery candidate) {
+    if (candidate.tags.isNotEmpty) {
+      Iterable<TagData> tags = candidate.tags.values.flattened.map((tag) => tag.tagData);
+      bool hasLanguageTag = tags.any((tag) => normalizeMangaLibraryTagNamespace(tag.namespace) == 'language' || normalizeMangaLibraryTagNamespace(tag.translatedNamespace ?? '') == 'language');
+      return hasLanguageTag ? mangaLibraryTagsContainChineseLanguage(tags) : null;
+    }
+    String? language = candidate.language?.trim();
+    if (language != null && language.isNotEmpty) {
+      return isMangaLibraryChineseLanguageTag(namespace: 'language', key: language);
+    }
+    return null;
   }
 
   Future<void> toggleOrganized(MangaLibraryItem item) async {
@@ -1053,6 +1255,59 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   }
 }
 
+
+
+
+class _ChinesePreferredCandidateResult {
+  final Gallery? candidate;
+  final String status;
+  final String reason;
+
+  const _ChinesePreferredCandidateResult({this.candidate, required this.status, required this.reason});
+}
+
+class MangaLibraryBatchTagFillProgress {
+  final int totalCount;
+  MangaLibraryBatchTagFillStatus status = MangaLibraryBatchTagFillStatus.preparing;
+  int currentIndex = 0;
+  String currentTitle = '';
+  String currentCleanedTitle = '';
+  String currentSearchQuery = '';
+  int successCount = 0;
+  int skippedCount = 0;
+  int multipleExactMatchCount = 0;
+  int noExactMatchCount = 0;
+  int failureCount = 0;
+  int failedSearchCount = 0;
+  int failedDetailCount = 0;
+  int failedWriteCount = 0;
+  final List<MangaLibraryBatchTagFillRecord> records = [];
+
+  MangaLibraryBatchTagFillProgress({required this.totalCount});
+
+  bool get isRunning => status == MangaLibraryBatchTagFillStatus.preparing || status == MangaLibraryBatchTagFillStatus.searching || status == MangaLibraryBatchTagFillStatus.fetchingDetail || status == MangaLibraryBatchTagFillStatus.writingTags || status == MangaLibraryBatchTagFillStatus.cancelling;
+
+  double? get progress => totalCount == 0 ? null : currentIndex / totalCount;
+}
+
+enum MangaLibraryBatchTagFillStatus {
+  preparing,
+  searching,
+  fetchingDetail,
+  writingTags,
+  cancelling,
+  cancelled,
+  completed,
+}
+
+class MangaLibraryBatchTagFillRecord {
+  final String title;
+  final String searchQuery;
+  final String status;
+  final String reason;
+
+  const MangaLibraryBatchTagFillRecord({required this.title, required this.searchQuery, required this.status, required this.reason});
+}
 
 class MangaLibraryDeleteResult {
   int galleryCount = 0;

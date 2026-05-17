@@ -16,42 +16,91 @@ class MangaSimilarityPage extends StatefulWidget {
 }
 
 class _MangaSimilarityPageState extends State<MangaSimilarityPage> {
+  final List<MangaSimilarityGroup> _sessionGroups = [];
+  bool _isRefreshing = false;
+
   @override
   void initState() {
     super.initState();
-    mangaLibraryService.refreshSimilarityGroups();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshSessionGroups());
+  }
+
+  Future<void> _refreshSessionGroups() async {
+    if (_isRefreshing) {
+      return;
+    }
+    setState(() => _isRefreshing = true);
+    try {
+      await mangaLibraryService.refreshSimilarityGroups(force: true);
+      if (mounted) {
+        setState(() {
+          _sessionGroups
+            ..clear()
+            ..addAll(mangaLibraryService.similarityGroups);
+        });
+      }
+    } catch (e) {
+      toast('${'operationFailed'.tr}: $e', isShort: false);
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshing = false);
+      }
+    }
+  }
+
+  void _removeGroup(MangaSimilarityGroup group) {
+    setState(() => _sessionGroups.removeWhere((candidate) => candidate.pairKey == group.pairKey));
+  }
+
+  void _removeGroupsForItem(MangaLibraryItem item) {
+    setState(() => _sessionGroups.removeWhere((group) => group.first.stableKey == item.stableKey || group.second.stableKey == item.stableKey));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('similarManga'.tr)),
-      body: GetBuilder<MangaLibraryService>(
-        id: MangaLibraryService.similarityChangedId,
-        builder: (_) {
-          List<MangaSimilarityGroup> groups = mangaLibraryService.similarityGroups;
-          if (mangaLibraryService.isRefreshingSimilarityGroups) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (groups.isEmpty) {
-            return const _SimilarityEmptyState();
-          }
-
-          return ListView.separated(
-            key: const PageStorageKey<String>('mangaSimilarityList'),
-            padding: const EdgeInsets.all(8),
-            itemBuilder: (context, index) => _SimilarityGroupCard(group: groups[index]),
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemCount: groups.length,
-          );
-        },
+      appBar: AppBar(
+        title: Text('similarManga'.tr),
+        actions: [
+          IconButton(
+            tooltip: 'refreshSimilarityResults'.tr,
+            icon: _isRefreshing ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.refresh),
+            onPressed: _isRefreshing ? null : _refreshSessionGroups,
+          ),
+        ],
       ),
+      body: _isRefreshing
+          ? const Center(child: CircularProgressIndicator())
+          : _sessionGroups.isEmpty
+              ? _SimilarityEmptyState(onRefresh: _refreshSessionGroups)
+              : ListView.separated(
+                  key: const PageStorageKey<String>('mangaSimilarityList'),
+                  padding: const EdgeInsets.all(8),
+                  itemBuilder: (context, index) => _SimilarityGroupCard(
+                    group: _sessionGroups[index],
+                    onIgnore: () => _ignoreGroup(_sessionGroups[index]),
+                    onDeletedItem: _removeGroupsForItem,
+                  ),
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemCount: _sessionGroups.length,
+                ),
     );
+  }
+
+  Future<void> _ignoreGroup(MangaSimilarityGroup group) async {
+    try {
+      await mangaLibraryService.ignoreSimilarityGroup(group);
+      _removeGroup(group);
+    } catch (e) {
+      toast('${'operationFailed'.tr}: $e', isShort: false);
+    }
   }
 }
 
 class _SimilarityEmptyState extends StatelessWidget {
-  const _SimilarityEmptyState();
+  final VoidCallback onRefresh;
+
+  const _SimilarityEmptyState({required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -65,9 +114,15 @@ class _SimilarityEmptyState extends StatelessWidget {
             const SizedBox(height: 12),
             Text('mangaSimilarityAllDone'.tr, textAlign: TextAlign.center),
             const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () => backRoute(currentRoute: Routes.mangaSimilarity),
-              child: Text('backToMangaLibrary'.tr),
+            Wrap(
+              spacing: 8,
+              children: [
+                FilledButton.icon(onPressed: onRefresh, icon: const Icon(Icons.refresh), label: Text('refreshSimilarityResults'.tr)),
+                OutlinedButton(
+                  onPressed: () => backRoute(currentRoute: Routes.mangaSimilarity),
+                  child: Text('backToMangaLibrary'.tr),
+                ),
+              ],
             ),
           ],
         ),
@@ -78,8 +133,10 @@ class _SimilarityEmptyState extends StatelessWidget {
 
 class _SimilarityGroupCard extends StatelessWidget {
   final MangaSimilarityGroup group;
+  final VoidCallback onIgnore;
+  final ValueChanged<MangaLibraryItem> onDeletedItem;
 
-  const _SimilarityGroupCard({required this.group});
+  const _SimilarityGroupCard({required this.group, required this.onIgnore, required this.onDeletedItem});
 
   @override
   Widget build(BuildContext context) {
@@ -92,15 +149,15 @@ class _SimilarityGroupCard extends StatelessWidget {
             Text('${'similarityScore'.tr}: ${group.score.toStringAsFixed(0)}'),
             Text('${'similarityReasons'.tr}: ${group.reasons.join(' / ')}'),
             const SizedBox(height: 8),
-            _SimilarityItem(item: group.first),
+            _SimilarityItem(item: group.first, onDeleted: onDeletedItem),
             const Divider(),
-            _SimilarityItem(item: group.second),
+            _SimilarityItem(item: group.second, onDeleted: onDeletedItem),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
                 icon: const Icon(Icons.visibility_off),
                 label: Text('ignoreThisSimilarity'.tr),
-                onPressed: _ignoreGroup,
+                onPressed: onIgnore,
               ),
             ),
           ],
@@ -108,20 +165,13 @@ class _SimilarityGroupCard extends StatelessWidget {
       ),
     );
   }
-
-  Future<void> _ignoreGroup() async {
-    try {
-      await mangaLibraryService.ignoreSimilarityGroup(group);
-    } catch (e) {
-      toast('${'operationFailed'.tr}: $e', isShort: false);
-    }
-  }
 }
 
 class _SimilarityItem extends StatelessWidget {
   final MangaLibraryItem item;
+  final ValueChanged<MangaLibraryItem> onDeleted;
 
-  const _SimilarityItem({required this.item});
+  const _SimilarityItem({required this.item, required this.onDeleted});
 
   @override
   Widget build(BuildContext context) {
@@ -170,7 +220,7 @@ class _SimilarityItem extends StatelessWidget {
 
     try {
       await mangaLibraryService.deleteItem(item);
-      await mangaLibraryService.refreshSimilarityGroups(force: true);
+      onDeleted(item);
     } catch (e) {
       toast('${'operationFailed'.tr}: $e', isShort: false);
     }

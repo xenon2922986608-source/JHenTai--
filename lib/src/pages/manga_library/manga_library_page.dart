@@ -40,6 +40,16 @@ class MangaLibraryPage extends StatelessWidget {
             : [
                 GetBuilder<MangaLibraryService>(
                   id: MangaLibraryService.libraryChangedId,
+                  builder: (_) => IconButton(
+                    tooltip: 'batchFillMissingTags'.tr,
+                    icon: mangaLibraryService.batchTagFillProgress?.isRunning == true
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.auto_fix_high),
+                    onPressed: mangaLibraryService.batchTagFillProgress?.isRunning == true ? null : () => _showBatchTagFillDialog(context),
+                  ),
+                ),
+                GetBuilder<MangaLibraryService>(
+                  id: MangaLibraryService.libraryChangedId,
                   builder: (_) {
                     int count = mangaLibraryService.similarityGroupCount;
                     return Badge(
@@ -206,6 +216,10 @@ class MangaLibraryPage extends StatelessWidget {
       tooltip: 'mangaLibrary'.tr,
       icon: const Icon(Icons.more_vert),
       onSelected: (value) {
+        if (value == 'batchFillTags') {
+          _showBatchTagFillDialog(context);
+          return;
+        }
         if (value == 'similar') {
           toRoute(Routes.mangaSimilarity);
           return;
@@ -233,6 +247,16 @@ class MangaLibraryPage extends StatelessWidget {
         }
       },
       itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: 'batchFillTags',
+          enabled: mangaLibraryService.batchTagFillProgress?.isRunning != true,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.auto_fix_high),
+            title: Text('batchFillMissingTags'.tr),
+          ),
+        ),
         PopupMenuItem<String>(
           value: 'similar',
           child: ListTile(
@@ -522,6 +546,18 @@ class MangaLibraryPage extends StatelessWidget {
     ].join('\n');
   }
 
+
+  Future<void> _showBatchTagFillDialog(BuildContext context) async {
+    if (mangaLibraryService.batchTagFillProgress?.isRunning == true) {
+      return;
+    }
+    if (mangaLibraryService.batchTagFillTargets.isEmpty) {
+      toast('batchTagFillNoTargets'.tr, isShort: false);
+      return;
+    }
+    await showDialog(context: context, barrierDismissible: false, builder: (_) => const _BatchTagFillDialog());
+  }
+
   Future<void> _showSearchDialog(BuildContext context) async {
     TextEditingController controller = TextEditingController(text: mangaLibraryService.searchKeyword);
     String? keyword = await showDialog<String>(
@@ -607,6 +643,100 @@ class MangaLibraryPage extends StatelessWidget {
         return 'mangaLibraryCompactMode'.tr;
       case MangaLibraryDisplayMode.detail:
         return 'mangaLibraryDetailMode'.tr;
+    }
+  }
+}
+
+
+class _BatchTagFillDialog extends StatefulWidget {
+  const _BatchTagFillDialog();
+
+  @override
+  State<_BatchTagFillDialog> createState() => _BatchTagFillDialogState();
+}
+
+class _BatchTagFillDialogState extends State<_BatchTagFillDialog> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => mangaLibraryService.startBatchFillMissingTags());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GetBuilder<MangaLibraryService>(
+      id: MangaLibraryService.libraryChangedId,
+      builder: (_) {
+        MangaLibraryBatchTagFillProgress? progress = mangaLibraryService.batchTagFillProgress;
+        if (progress == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return AlertDialog(
+          title: Text('batchFillTags'.tr),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${'batchTagFillStatus'.tr}: ${_batchStatusTitle(progress.status)}'),
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(value: progress.progress),
+                  const SizedBox(height: 8),
+                  Text('${'progress'.tr}: ${progress.currentIndex}/${progress.totalCount}'),
+                  if (progress.currentTitle.isNotEmpty) Text('${'currentItem'.tr}: ${progress.currentTitle}', maxLines: 2, overflow: TextOverflow.ellipsis),
+                  if (progress.currentCleanedTitle.isNotEmpty) Text('${'cleanedTitle'.tr}: ${progress.currentCleanedTitle}', maxLines: 2, overflow: TextOverflow.ellipsis),
+                  if (progress.currentSearchQuery.isNotEmpty) Text('${'searchKeyword'.tr}: ${progress.currentSearchQuery}', maxLines: 2, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      Chip(label: Text('${'success'.tr}: ${progress.successCount}')),
+                      Chip(label: Text('${'skippedCount'.tr}: ${progress.skippedCount}')),
+                      Chip(label: Text('${'batchTagFillMultipleExact'.tr}: ${progress.multipleExactMatchCount}')),
+                      Chip(label: Text('${'batchTagFillNoExact'.tr}: ${progress.noExactMatchCount}')),
+                      Chip(label: Text('${'failureCount'.tr}: ${progress.failureCount}')),
+                    ],
+                  ),
+                  if (progress.records.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text('batchTagFillResultDetails'.tr, style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 6),
+                    ...progress.records.take(20).map((record) => Text('${record.status}: ${record.title} (${record.searchQuery}) ${record.reason}', maxLines: 3, overflow: TextOverflow.ellipsis)),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            if (progress.isRunning)
+              TextButton(onPressed: mangaLibraryService.cancelBatchTagFill, child: Text('cancel'.tr))
+            else
+              TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('close'.tr)),
+          ],
+        );
+      },
+    );
+  }
+
+  String _batchStatusTitle(MangaLibraryBatchTagFillStatus status) {
+    switch (status) {
+      case MangaLibraryBatchTagFillStatus.preparing:
+        return 'batchTagFillPreparing'.tr;
+      case MangaLibraryBatchTagFillStatus.searching:
+        return 'batchTagFillSearching'.tr;
+      case MangaLibraryBatchTagFillStatus.fetchingDetail:
+        return 'batchTagFillFetchingDetail'.tr;
+      case MangaLibraryBatchTagFillStatus.writingTags:
+        return 'batchTagFillWritingTags'.tr;
+      case MangaLibraryBatchTagFillStatus.cancelling:
+        return 'batchTagFillCancelling'.tr;
+      case MangaLibraryBatchTagFillStatus.cancelled:
+        return 'batchTagFillCancelled'.tr;
+      case MangaLibraryBatchTagFillStatus.completed:
+        return 'batchTagFillCompleted'.tr;
     }
   }
 }

@@ -148,7 +148,7 @@ class _MangaLibraryTagEditDialogState extends State<MangaLibraryTagEditDialog> {
     try {
       await mangaLibraryService.updateItemTagsManually(widget.item, _tags);
       toast('tagFillSaved'.tr);
-      backRoute(result: true);
+      Navigator.of(context).pop(true);
     } catch (e) {
       toast('${'tagFillSaveFailed'.tr}: $e', isShort: false);
     } finally {

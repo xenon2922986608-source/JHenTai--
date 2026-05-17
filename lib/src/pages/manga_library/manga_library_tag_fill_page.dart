@@ -225,6 +225,7 @@ class _MangaLibraryTagFillPageState extends State<MangaLibraryTagFillPage> {
       await mangaLibraryService.fillMissingTagsFromGallery(item, candidate);
       toast('tagFillSaved'.tr);
       if (mounted) {
+        mangaLibraryService.highlightLibraryItem(item.stableKey);
         backRoute(currentRoute: Routes.mangaLibraryTagFill);
       }
     } catch (e) {
