@@ -14,10 +14,12 @@ import 'package:jhentai/src/extension/widget_extension.dart';
 import 'package:jhentai/src/mixin/scroll_to_top_page_mixin.dart';
 import 'package:jhentai/src/model/gallery_image.dart';
 import 'package:jhentai/src/model/gallery_tag.dart';
+import 'package:jhentai/src/model/manga_library_item.dart';
 import 'package:jhentai/src/pages/details/comment/eh_comment.dart';
 import 'package:jhentai/src/pages/download/download_base_page.dart';
 import 'package:jhentai/src/routes/routes.dart';
 import 'package:jhentai/src/service/archive_download_service.dart';
+import 'package:jhentai/src/service/manga_library_service.dart';
 import 'package:jhentai/src/utils/uuid_util.dart';
 import 'package:jhentai/src/widget/eh_alert_dialog.dart';
 import 'package:jhentai/src/widget/eh_gallery_detail_dialog.dart';
@@ -36,6 +38,7 @@ import '../../service/gallery_download_service.dart';
 import '../../setting/preference_setting.dart';
 import '../../setting/style_setting.dart';
 import '../../utils/date_util.dart';
+import '../../utils/toast_util.dart';
 import '../../utils/route_util.dart';
 import '../../utils/search_util.dart';
 import '../../utils/string_uril.dart';
@@ -141,6 +144,14 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
                           children: [Text('delete'.tr), const Icon(Icons.delete)],
                         ),
                       ),
+                    if (containGallery || containArchive)
+                      PopupMenuItem(
+                        value: 6,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [Text('switchToThisMangaInLibrary'.tr), const Icon(Icons.collections_bookmark)],
+                        ),
+                      ),
                     if (state.galleryDetails?.parentGalleryUrl != null || (state.galleryDetails?.childrenGallerys?.isNotEmpty ?? false))
                       PopupMenuItem(
                         value: 4,
@@ -181,6 +192,22 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
                   }
                   if (value == 5) {
                     logic.blockGallery();
+                  }
+                  if (value == 6) {
+                    MangaLibraryItemType targetType = containGallery ? MangaLibraryItemType.gallery : MangaLibraryItemType.archive;
+                    MangaLibraryItem? item = mangaLibraryService.findItemByIdentity(
+                      type: targetType,
+                      gid: state.galleryUrl.gid,
+                      token: state.galleryUrl.token,
+                    );
+                    if (item == null) {
+                      toast('mangaLibraryItemNotFound'.tr);
+                      return;
+                    }
+                    mangaLibraryService.requestFocusInLibrary(type: targetType, gid: state.galleryUrl.gid, token: state.galleryUrl.token);
+                    downloadPageGalleryTypeNotifier.value = null;
+                    downloadPageGalleryTypeNotifier.value = DownloadPageGalleryType.library;
+                    toRoute(Routes.download);
                   }
                 },
               );

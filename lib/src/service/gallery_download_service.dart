@@ -852,14 +852,17 @@ class GalleryDownloadService extends GetxController with GridBasePageServiceMixi
   }
 
   static String computeImageDownloadAbsolutePathFromRelativePath(String imageRelativePath) {
-    String path = join(pathService.getVisibleDir().path, imageRelativePath);
+    String absolutePath = imageRelativePath;
+    if (!path.isAbsolute(imageRelativePath)) {
+      absolutePath = join(pathService.getVisibleDir().path, imageRelativePath);
+    }
 
     /// I don't know why some images can't be loaded on Windows... If you knows, please tell me
     if (!GetPlatform.isWindows) {
-      return path;
+      return absolutePath;
     }
 
-    return join(rootPrefix(path), relative(path, from: rootPrefix(path)));
+    return join(rootPrefix(absolutePath), relative(absolutePath, from: rootPrefix(absolutePath)));
   }
 
   void _sortGallerys() {
