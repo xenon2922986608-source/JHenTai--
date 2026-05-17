@@ -626,6 +626,16 @@ class _MangaLibraryCard extends StatelessWidget {
       }
     }
   }
+
+  String _deleteConfirmContent(MangaLibraryItem item) {
+    if (item.type == MangaLibraryItemType.importedFolder) {
+      return 'deleteImportedFolderOriginalHint'.tr;
+    }
+    if (item.type == MangaLibraryItemType.pdf) {
+      return 'deletePdfOriginalHint'.tr;
+    }
+    return 'deleteDownloadedMangaHint'.tr;
+  }
 }
 
 class _MangaLibraryCover extends StatelessWidget {
