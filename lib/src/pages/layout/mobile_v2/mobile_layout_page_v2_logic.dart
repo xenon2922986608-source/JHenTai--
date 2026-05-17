@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:get/get.dart';
 import 'package:jhentai/src/extension/get_logic_extension.dart';
 import 'package:jhentai/src/extension/list_extension.dart';
+import 'package:jhentai/src/model/tab_bar_icon.dart';
+import 'package:jhentai/src/pages/download/download_base_page.dart';
 import 'package:jhentai/src/pages/layout/mobile_v2/mobile_layout_page_v2_state.dart';
 import 'package:jhentai/src/utils/route_util.dart';
 
@@ -43,6 +45,20 @@ class MobileLayoutPageV2Logic extends GetxController with DoubleTapToRefreshLogi
   }
 
   void handleTapTabBarButton(int index) {
+    if (state.icons[index].name == TabBarIconNameEnum.mangaLibrary) {
+      MobileLayoutPageV2State.scaffoldKey.currentState?.closeDrawer();
+      state.selectedDrawerTabIndex = index;
+      downloadPageGalleryTypeNotifier.value = null;
+      downloadPageGalleryTypeNotifier.value = DownloadPageGalleryType.library;
+      if (state.selectedNavigationIndex != 1) {
+        state.selectedNavigationIndex = 1;
+        updateSafely([bodyId, bottomNavigationBarId, tabBarId]);
+      } else {
+        updateSafely([bodyId, tabBarId]);
+      }
+      return;
+    }
+
     if (state.icons[index].enterNewRoute) {
       MobileLayoutPageV2State.scaffoldKey.currentState?.closeDrawer();
       toRoute(state.icons[index].routeName);
