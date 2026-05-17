@@ -159,6 +159,12 @@ class _MangaLibraryDetailBody extends StatelessWidget {
                           label: Text('read'.tr),
                           onPressed: () => mangaLibraryService.openReader(item),
                         ),
+                        if (item.tags.isEmpty)
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.new_label_outlined),
+                            label: Text('fillTags'.tr),
+                            onPressed: () => _fillTags(context),
+                          ),
                         OutlinedButton.icon(
                           icon: const Icon(Icons.delete_outline),
                           label: Text('delete'.tr),
@@ -177,6 +183,9 @@ class _MangaLibraryDetailBody extends StatelessWidget {
           _InfoRow(label: 'uploader'.tr, value: item.uploader ?? '-'),
           _InfoRow(label: 'downloadTime'.tr, value: item.downloadTime),
           _InfoRow(label: 'localPath'.tr, value: item.localPath),
+          if (item.sourceGalleryUrl?.isNotEmpty ?? false) _InfoRow(label: 'sourceGalleryUrl'.tr, value: item.sourceGalleryUrl!),
+          if (item.sourceTitle?.isNotEmpty ?? false) _InfoRow(label: 'sourceTitle'.tr, value: item.sourceTitle!),
+          if (item.tagUpdatedAt?.isNotEmpty ?? false) _InfoRow(label: 'tagUpdatedAt'.tr, value: item.tagUpdatedAt!),
           _InfoRow(label: 'userRating'.tr, value: '-'),
           const SizedBox(height: 12),
           Text('tags'.tr, style: Theme.of(context).textTheme.titleMedium),
@@ -185,6 +194,27 @@ class _MangaLibraryDetailBody extends StatelessWidget {
         ],
       ),
     );
+  }
+
+
+  Future<void> _fillTags(BuildContext context) async {
+    bool hasSource = (item.galleryUrl?.trim().isNotEmpty ?? false) || (item.gid != null && (item.token?.trim().isNotEmpty ?? false));
+    if (hasSource) {
+      try {
+        await mangaLibraryService.fillMissingTagsDirectly(item);
+        toast('tagFillSaved'.tr);
+      } catch (e) {
+        toast('${'tagFillSaveFailed'.tr}: $e', isShort: false);
+      }
+      return;
+    }
+
+    if (item.isImported) {
+      toRoute(Routes.mangaLibraryTagFill, arguments: item);
+      return;
+    }
+
+    toast('mangaLibraryNoSourceGallery'.tr, isShort: false);
   }
 
   Future<void> _confirmDelete(BuildContext context) async {

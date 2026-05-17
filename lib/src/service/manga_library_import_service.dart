@@ -138,18 +138,25 @@ class MangaLibraryImportService extends GetxController with JHLifeCircleBeanErro
     String now = result.scanTime;
     String itemKey = MangaLibraryItem.buildStableKey(type: MangaLibraryItemType.importedFolder, localPath: directory.path);
     MangaLibraryImportedItem? existed = importedItems.firstWhereOrNull((item) => item.itemKey == itemKey);
+    bool existedHasTags = existed?.tags.isNotEmpty ?? false;
     MangaLibraryImportedItem item = MangaLibraryImportedItem(
       itemKey: itemKey,
       type: MangaLibraryItemType.importedFolder.code,
       title: basename(directory.path),
       localPath: directory.path,
       coverPath: images.first.path,
-      pageCount: images.length,
-      category: importedFolderCategory,
-      tags: '',
+      pageCount: existedHasTags ? (existed?.pageCount ?? images.length) : images.length,
+      category: existedHasTags ? (existed?.category ?? importedFolderCategory) : importedFolderCategory,
+      tags: existed?.tags ?? '',
       createdAt: existed?.createdAt ?? now,
       updatedAt: now,
       lastScanAt: now,
+      sourceGid: existed?.sourceGid,
+      sourceToken: existed?.sourceToken,
+      sourceGalleryUrl: existed?.sourceGalleryUrl,
+      sourceTitle: existed?.sourceTitle,
+      sourceUploader: existed?.sourceUploader,
+      tagUpdatedAt: existed?.tagUpdatedAt,
     );
 
     await localConfigService.write(configKey: ConfigEnum.mangaLibraryImportedItem, subConfigKey: itemKey, value: jsonEncode(item.toJson()));
@@ -167,18 +174,25 @@ class MangaLibraryImportService extends GetxController with JHLifeCircleBeanErro
     String now = result.scanTime;
     String itemKey = MangaLibraryItem.buildStableKey(type: MangaLibraryItemType.pdf, localPath: file.path);
     MangaLibraryImportedItem? existed = importedItems.firstWhereOrNull((item) => item.itemKey == itemKey);
+    bool existedHasTags = existed?.tags.isNotEmpty ?? false;
     MangaLibraryImportedItem item = MangaLibraryImportedItem(
       itemKey: itemKey,
       type: MangaLibraryItemType.pdf.code,
       title: basenameWithoutExtension(file.path),
       localPath: file.path,
       coverPath: null,
-      pageCount: 0,
-      category: pdfCategory,
-      tags: '',
+      pageCount: existedHasTags ? (existed?.pageCount ?? 0) : 0,
+      category: existedHasTags ? (existed?.category ?? pdfCategory) : pdfCategory,
+      tags: existed?.tags ?? '',
       createdAt: existed?.createdAt ?? now,
       updatedAt: now,
       lastScanAt: now,
+      sourceGid: existed?.sourceGid,
+      sourceToken: existed?.sourceToken,
+      sourceGalleryUrl: existed?.sourceGalleryUrl,
+      sourceTitle: existed?.sourceTitle,
+      sourceUploader: existed?.sourceUploader,
+      tagUpdatedAt: existed?.tagUpdatedAt,
     );
 
     await localConfigService.write(configKey: ConfigEnum.mangaLibraryImportedItem, subConfigKey: itemKey, value: jsonEncode(item.toJson()));
@@ -191,6 +205,44 @@ class MangaLibraryImportService extends GetxController with JHLifeCircleBeanErro
       importedItems[importedItems.indexWhere((i) => i.itemKey == itemKey)] = item;
     }
   }
+
+  Future<void> updateImportedItemTags({
+    required MangaLibraryItem item,
+    required String tags,
+    int? sourceGid,
+    String? sourceToken,
+    String? sourceGalleryUrl,
+    String? sourceTitle,
+    String? sourceUploader,
+    String? category,
+    String? uploader,
+    int? pageCount,
+  }) async {
+    int index = importedItems.indexWhere((importedItem) => importedItem.itemKey == item.stableKey);
+    if (index == -1) {
+      throw Exception('mangaLibraryItemNotFound'.tr);
+    }
+
+    MangaLibraryImportedItem existed = importedItems[index];
+    String now = DateTime.now().toString();
+    MangaLibraryImportedItem updated = existed.copyWith(
+      tags: tags,
+      category: category,
+      pageCount: pageCount,
+      sourceGid: sourceGid,
+      sourceToken: sourceToken,
+      sourceGalleryUrl: sourceGalleryUrl,
+      sourceTitle: sourceTitle,
+      sourceUploader: sourceUploader ?? uploader,
+      tagUpdatedAt: now,
+      updatedAt: now,
+    );
+
+    await localConfigService.write(configKey: ConfigEnum.mangaLibraryImportedItem, subConfigKey: updated.itemKey, value: jsonEncode(updated.toJson()));
+    importedItems[index] = updated;
+    update([importedItemsChangedId]);
+  }
+
 }
 
 class MangaLibraryImportedItem {
@@ -205,6 +257,12 @@ class MangaLibraryImportedItem {
   final String createdAt;
   final String updatedAt;
   final String lastScanAt;
+  final int? sourceGid;
+  final String? sourceToken;
+  final String? sourceGalleryUrl;
+  final String? sourceTitle;
+  final String? sourceUploader;
+  final String? tagUpdatedAt;
 
   const MangaLibraryImportedItem({
     required this.itemKey,
@@ -218,6 +276,12 @@ class MangaLibraryImportedItem {
     required this.createdAt,
     required this.updatedAt,
     required this.lastScanAt,
+    this.sourceGid,
+    this.sourceToken,
+    this.sourceGalleryUrl,
+    this.sourceTitle,
+    this.sourceUploader,
+    this.tagUpdatedAt,
   });
 
   factory MangaLibraryImportedItem.fromJson(Map<String, dynamic> json) {
@@ -233,6 +297,52 @@ class MangaLibraryImportedItem {
       createdAt: json['createdAt'],
       updatedAt: json['updatedAt'],
       lastScanAt: json['lastScanAt'],
+      sourceGid: json['sourceGid'],
+      sourceToken: json['sourceToken'],
+      sourceGalleryUrl: json['sourceGalleryUrl'],
+      sourceTitle: json['sourceTitle'],
+      sourceUploader: json['sourceUploader'],
+      tagUpdatedAt: json['tagUpdatedAt'],
+    );
+  }
+
+  MangaLibraryImportedItem copyWith({
+    String? itemKey,
+    String? type,
+    String? title,
+    String? localPath,
+    String? coverPath,
+    int? pageCount,
+    String? category,
+    String? tags,
+    String? createdAt,
+    String? updatedAt,
+    String? lastScanAt,
+    int? sourceGid,
+    String? sourceToken,
+    String? sourceGalleryUrl,
+    String? sourceTitle,
+    String? sourceUploader,
+    String? tagUpdatedAt,
+  }) {
+    return MangaLibraryImportedItem(
+      itemKey: itemKey ?? this.itemKey,
+      type: type ?? this.type,
+      title: title ?? this.title,
+      localPath: localPath ?? this.localPath,
+      coverPath: coverPath ?? this.coverPath,
+      pageCount: pageCount ?? this.pageCount,
+      category: category ?? this.category,
+      tags: tags ?? this.tags,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      lastScanAt: lastScanAt ?? this.lastScanAt,
+      sourceGid: sourceGid ?? this.sourceGid,
+      sourceToken: sourceToken ?? this.sourceToken,
+      sourceGalleryUrl: sourceGalleryUrl ?? this.sourceGalleryUrl,
+      sourceTitle: sourceTitle ?? this.sourceTitle,
+      sourceUploader: sourceUploader ?? this.sourceUploader,
+      tagUpdatedAt: tagUpdatedAt ?? this.tagUpdatedAt,
     );
   }
 
@@ -249,6 +359,12 @@ class MangaLibraryImportedItem {
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'lastScanAt': lastScanAt,
+      'sourceGid': sourceGid,
+      'sourceToken': sourceToken,
+      'sourceGalleryUrl': sourceGalleryUrl,
+      'sourceTitle': sourceTitle,
+      'sourceUploader': sourceUploader,
+      'tagUpdatedAt': tagUpdatedAt,
     };
   }
 }

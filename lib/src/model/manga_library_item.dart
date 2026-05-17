@@ -38,6 +38,11 @@ class MangaLibraryItem {
   final String localPath;
   final GalleryImage cover;
   final bool isOriginal;
+  final int? sourceGid;
+  final String? sourceToken;
+  final String? sourceGalleryUrl;
+  final String? sourceTitle;
+  final String? tagUpdatedAt;
 
   const MangaLibraryItem({
     required this.type,
@@ -53,6 +58,11 @@ class MangaLibraryItem {
     required this.localPath,
     required this.cover,
     this.isOriginal = false,
+    this.sourceGid,
+    this.sourceToken,
+    this.sourceGalleryUrl,
+    this.sourceTitle,
+    this.tagUpdatedAt,
   });
 
   String get id => stableKey;

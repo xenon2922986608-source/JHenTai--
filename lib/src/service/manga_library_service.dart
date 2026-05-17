@@ -3,10 +3,18 @@ import 'dart:math';
 
 import 'package:collection/collection.dart';
 import 'package:get/get.dart';
+import 'package:jhentai/src/database/dao/archive_dao.dart';
+import 'package:jhentai/src/database/dao/gallery_dao.dart';
 import 'package:jhentai/src/database/dao/tag_dao.dart';
 import 'package:jhentai/src/database/database.dart';
 import 'package:jhentai/src/enum/config_enum.dart';
+import 'package:jhentai/src/model/gallery.dart';
+import 'package:jhentai/src/model/gallery_detail.dart';
 import 'package:jhentai/src/model/gallery_image.dart';
+import 'package:jhentai/src/model/gallery_page.dart';
+import 'package:jhentai/src/model/gallery_url.dart';
+import 'package:jhentai/src/model/search_config.dart';
+import 'package:jhentai/src/network/eh_request.dart';
 import 'package:jhentai/src/model/manga_library_item.dart';
 import 'package:jhentai/src/model/read_page_info.dart';
 import 'package:jhentai/src/routes/routes.dart';
@@ -23,6 +31,7 @@ import 'package:jhentai/src/utils/manga_library_tag_util.dart';
 import 'package:jhentai/src/utils/route_util.dart';
 import 'package:jhentai/src/utils/file_util.dart';
 import 'package:jhentai/src/utils/toast_util.dart';
+import 'package:jhentai/src/utils/eh_spider_parser.dart';
 import 'package:jhentai/src/service/log.dart';
 import 'package:path/path.dart' as path;
 
@@ -134,7 +143,7 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
       mangaLibraryImportService.importedItems.length,
       galleryDownloadService.gallerys.map((gallery) => '${gallery.gid}:${gallery.downloadStatusIndex}:${gallery.insertTime}:${gallery.tags}').join('|'),
       archiveDownloadService.archives.map((archive) => '${archive.gid}:${archive.archiveStatusCode}:${archive.insertTime}:${archive.tags}').join('|'),
-      mangaLibraryImportService.importedItems.map((item) => '${item.itemKey}:${item.updatedAt}:${item.tags}:${item.pageCount}').join('|'),
+      mangaLibraryImportService.importedItems.map((item) => '${item.itemKey}:${item.updatedAt}:${item.tags}:${item.pageCount}:${item.sourceGalleryUrl ?? ''}').join('|'),
     ].join('||');
   }
 
@@ -185,11 +194,19 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         title: importedItem.title,
         category: importedItem.category,
         pageCount: importedItem.pageCount,
-        uploader: null,
+        gid: importedItem.sourceGid,
+        token: importedItem.sourceToken,
+        galleryUrl: importedItem.sourceGalleryUrl,
+        uploader: importedItem.sourceUploader,
         tags: _translateTags(tagDataString2TagDataList(importedItem.tags)),
         downloadTime: importedItem.createdAt,
         localPath: importedItem.localPath,
         cover: GalleryImage(url: '', path: importedItem.coverPath, downloadStatus: DownloadStatus.downloaded),
+        sourceGid: importedItem.sourceGid,
+        sourceToken: importedItem.sourceToken,
+        sourceGalleryUrl: importedItem.sourceGalleryUrl,
+        sourceTitle: importedItem.sourceTitle,
+        tagUpdatedAt: importedItem.tagUpdatedAt,
       );
     }));
 
@@ -572,6 +589,102 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         result.missingOriginalPaths.add(item.localPath);
       }
     }
+  }
+
+
+  String buildTagFillSearchKeyword(MangaLibraryItem item) {
+    String source = item.title.trim().isNotEmpty ? item.title : path.basenameWithoutExtension(item.localPath);
+    return source
+        .replaceAll(RegExp(r'\[(?:chinese|digital|uncensored|ai generated|english|japanese|korean|translated|translation)\]', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\((?:chinese|digital|uncensored|ai generated|english|japanese|korean|translated|translation)\)', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'漢化|汉化|中文|無修正|无修正|翻訳|翻译|DL版|電子版', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\[[^\]]*(?:汉化组|漢化組|翻译组|翻訳組|组|組)[^\]]*\]', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\([^\)]*(?:汉化组|漢化組|翻译组|翻訳組|组|組)[^\)]*\)', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'[【】「」『』]'), ' ')
+        .replaceAll(RegExp(r'\[\s*\]|\(\s*\)|（\s*）'), ' ')
+        .replaceAll(RegExp(r'[_\-]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  Future<List<Gallery>> searchTagFillCandidates(String keyword) async {
+    String normalizedKeyword = keyword.trim();
+    if (normalizedKeyword.isEmpty) {
+      throw Exception('invalid'.tr);
+    }
+
+    GalleryPageInfo pageInfo = await ehRequest.requestGalleryPage<GalleryPageInfo>(
+      searchConfig: SearchConfig(keyword: normalizedKeyword),
+      parser: EHSpiderParser.galleryPage2GalleryPageInfo,
+    );
+    return pageInfo.gallerys;
+  }
+
+  Future<GalleryDetail> fetchTagFillCandidateDetail(Gallery gallery) async {
+    ({GalleryDetail galleryDetails, String apikey}) detailPageInfo = await ehRequest.requestDetailPage<({GalleryDetail galleryDetails, String apikey})>(
+      galleryUrl: gallery.galleryUrl.url,
+      useCacheIfAvailable: false,
+      parser: EHSpiderParser.detailPage2GalleryAndDetailAndApikey,
+    );
+    return detailPageInfo.galleryDetails;
+  }
+
+  Future<void> fillMissingTagsFromGallery(MangaLibraryItem item, Gallery gallery) async {
+    GalleryDetail detail = await fetchTagFillCandidateDetail(gallery);
+    await fillMissingTagsFromDetail(item, detail);
+  }
+
+  Future<void> fillMissingTagsFromDetail(MangaLibraryItem item, GalleryDetail detail) async {
+    String tags = tagMap2TagString(detail.tags);
+    if (tags.isEmpty) {
+      throw Exception('candidateHasNoTags'.tr);
+    }
+
+    if (item.isImported) {
+      await mangaLibraryImportService.updateImportedItemTags(
+        item: item,
+        tags: tags,
+        sourceGid: detail.galleryUrl.gid,
+        sourceToken: detail.galleryUrl.token,
+        sourceGalleryUrl: detail.galleryUrl.url,
+        sourceTitle: detail.japaneseTitle ?? detail.rawTitle,
+        sourceUploader: detail.uploader,
+        category: detail.category,
+        uploader: detail.uploader,
+        pageCount: detail.pageCount,
+      );
+    } else if (item.type == MangaLibraryItemType.gallery) {
+      await GalleryDao.updateGalleryTags(item.gid!, tags);
+      int index = galleryDownloadService.gallerys.indexWhere((gallery) => gallery.gid == item.gid);
+      if (index != -1) {
+        galleryDownloadService.gallerys[index] = galleryDownloadService.gallerys[index].copyWith(tags: tags);
+      }
+    } else if (item.type == MangaLibraryItemType.archive) {
+      await ArchiveDao.updateArchiveTags(item.gid!, tags);
+      int index = archiveDownloadService.archives.indexWhere((archive) => archive.gid == item.gid);
+      if (index != -1) {
+        archiveDownloadService.archives[index] = archiveDownloadService.archives[index].copyWith(tags: tags);
+      }
+    }
+
+    refreshLibraryItems();
+  }
+
+  Future<void> fillMissingTagsDirectly(MangaLibraryItem item) async {
+    String? galleryUrl = item.galleryUrl;
+    if ((galleryUrl == null || galleryUrl.trim().isEmpty) && item.gid != null && (item.token?.trim().isNotEmpty ?? false)) {
+      galleryUrl = GalleryUrl(isEH: true, gid: item.gid!, token: item.token!).url;
+    }
+    if (galleryUrl == null || galleryUrl.trim().isEmpty) {
+      throw Exception('mangaLibraryNoSourceGallery'.tr);
+    }
+
+    ({GalleryDetail galleryDetails, String apikey}) detailPageInfo = await ehRequest.requestDetailPage<({GalleryDetail galleryDetails, String apikey})>(
+      galleryUrl: galleryUrl,
+      useCacheIfAvailable: false,
+      parser: EHSpiderParser.detailPage2GalleryAndDetailAndApikey,
+    );
+    await fillMissingTagsFromDetail(item, detailPageInfo.galleryDetails);
   }
 
   Future<void> openReader(MangaLibraryItem item) async {
