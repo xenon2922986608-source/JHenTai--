@@ -26,6 +26,7 @@ class _MangaLibraryTagFillPageState extends State<MangaLibraryTagFillPage> {
   final TextEditingController _keywordController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   MangaLibraryItem? _initialItem;
+  String _autoKeyword = '';
   List<Gallery> _candidates = [];
   bool _isSearching = false;
   bool _isFetching = false;
@@ -38,7 +39,8 @@ class _MangaLibraryTagFillPageState extends State<MangaLibraryTagFillPage> {
     final dynamic arguments = Get.arguments;
     if (arguments is MangaLibraryItem) {
       _initialItem = arguments;
-      _keywordController.text = mangaLibraryService.buildTagFillSearchKeyword(arguments);
+      _autoKeyword = mangaLibraryService.buildTagFillSearchKeyword(arguments);
+      _keywordController.text = _autoKeyword;
       WidgetsBinding.instance.addPostFrameCallback((_) => _search());
     }
   }
@@ -75,7 +77,7 @@ class _MangaLibraryTagFillPageState extends State<MangaLibraryTagFillPage> {
               controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
               children: [
-                _LocalMangaInfoCard(item: item),
+                _LocalMangaInfoCard(item: item, autoKeyword: _autoKeyword),
                 const SizedBox(height: 16),
                 Text('searchKeyword'.tr, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
@@ -238,7 +240,9 @@ class _MangaLibraryTagFillPageState extends State<MangaLibraryTagFillPage> {
 class _LocalMangaInfoCard extends StatelessWidget {
   final MangaLibraryItem item;
 
-  const _LocalMangaInfoCard({required this.item});
+  final String autoKeyword;
+
+  const _LocalMangaInfoCard({required this.item, required this.autoKeyword});
 
   @override
   Widget build(BuildContext context) {
@@ -250,7 +254,8 @@ class _LocalMangaInfoCard extends StatelessWidget {
           children: [
             Text('localManga'.tr, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            _InfoLine(label: 'title'.tr, value: item.title),
+            _InfoLine(label: 'originalTitle'.tr, value: item.title),
+            _InfoLine(label: 'autoSearchKeyword'.tr, value: autoKeyword),
             _InfoLine(label: 'type'.tr, value: _mangaLibraryTypeTitle(item.type)),
             _InfoLine(label: 'localPath'.tr, value: item.localPath),
             _InfoLine(label: 'tags'.tr, value: item.tags.isEmpty ? 'noTags'.tr : item.tags.length.toString()),

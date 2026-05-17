@@ -41,6 +41,7 @@ enum ConfigEnum {
   mangaSimilarityIgnoredPair('mangaSimilarityIgnoredPair'),
   mangaLibraryDisplayMode('mangaLibraryDisplayMode'),
   mangaLibraryImportedItem('mangaLibraryImportedItem'),
+  mangaLibraryItemUserData('mangaLibraryItemUserData'),
 
   /// page config
   downloadPageBodyType('downloadPageGalleryType'),

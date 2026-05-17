@@ -5,6 +5,7 @@ import 'package:jhentai/src/model/gallery_url.dart';
 import 'package:jhentai/src/model/manga_library_item.dart';
 import 'package:jhentai/src/pages/download/download_base_page.dart';
 import 'package:jhentai/src/pages/details/details_page_logic.dart';
+import 'package:jhentai/src/pages/manga_library/manga_library_tag_edit_dialog.dart';
 import 'package:jhentai/src/pages/manga_library/manga_library_tag_groups.dart';
 import 'package:jhentai/src/routes/routes.dart';
 import 'package:jhentai/src/service/manga_library_service.dart';
@@ -147,6 +148,12 @@ class _MangaLibraryDetailBody extends StatelessWidget {
                       children: [
                         EHGalleryCategoryTag(category: item.category, onTap: () => mangaLibraryService.setSelectedCategory(item.category)),
                         Chip(label: Text(_mangaLibraryTypeTitle(item.type))),
+                        if (item.organized)
+                          Chip(
+                            avatar: const Icon(Icons.task_alt, size: 18, color: Colors.white),
+                            label: Text('organized'.tr, style: const TextStyle(color: Colors.white)),
+                            backgroundColor: Colors.green.shade600,
+                          ),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -164,6 +171,40 @@ class _MangaLibraryDetailBody extends StatelessWidget {
                             icon: const Icon(Icons.new_label_outlined),
                             label: Text('fillTags'.tr),
                             onPressed: () => _fillTags(context),
+                          ),
+                        if (item.isImported && item.tags.isNotEmpty)
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.manage_search),
+                            label: Text('searchSourceAgain'.tr),
+                            onPressed: () => toRoute(Routes.mangaLibraryTagFill, arguments: item, preventDuplicates: false),
+                          ),
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.edit_note),
+                          label: Text('manualEditTags'.tr),
+                          onPressed: () => _editTags(context),
+                        ),
+                        OutlinedButton.icon(
+                          icon: Icon(item.organized ? Icons.remove_done : Icons.task_alt, color: item.organized ? null : Colors.green),
+                          label: Text(item.organized ? 'cancelOrganized'.tr : 'markAsOrganized'.tr),
+                          onPressed: _toggleOrganized,
+                        ),
+                        if (item.isImported && _hasSourceGallery)
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.open_in_new),
+                            label: Text('openOnlineDetail'.tr),
+                            onPressed: () => _openSourceOnlineDetail(),
+                          ),
+                        if (item.isImported && _hasSourceGallery)
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.download_for_offline_outlined),
+                            label: Text('goToDownloadOrRedownload'.tr),
+                            onPressed: () => _openSourceOnlineDetail(),
+                          ),
+                        if (item.isImported)
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.save_alt),
+                            label: Text('writeLibraryMetadata'.tr),
+                            onPressed: _exportMetadata,
                           ),
                         OutlinedButton.icon(
                           icon: const Icon(Icons.delete_outline),
@@ -183,9 +224,16 @@ class _MangaLibraryDetailBody extends StatelessWidget {
           _InfoRow(label: 'uploader'.tr, value: item.uploader ?? '-'),
           _InfoRow(label: 'downloadTime'.tr, value: item.downloadTime),
           _InfoRow(label: 'localPath'.tr, value: item.localPath),
-          if (item.sourceGalleryUrl?.isNotEmpty ?? false) _InfoRow(label: 'sourceGalleryUrl'.tr, value: item.sourceGalleryUrl!),
+          if (item.isImported) _InfoRow(label: 'metadataStatus'.tr, value: item.hasSidecarMetadata ? 'metadataLinked'.tr : 'metadataNotWritten'.tr),
+          if (item.isImported && (item.sidecarPath?.isNotEmpty ?? false)) _InfoRow(label: 'metadataPath'.tr, value: item.sidecarPath!),
+          if (item.isImported) _InfoRow(label: 'sourceLinkStatus'.tr, value: _hasSourceGallery ? 'sourceLinked'.tr : 'sourceNotLinked'.tr),
           if (item.sourceTitle?.isNotEmpty ?? false) _InfoRow(label: 'sourceTitle'.tr, value: item.sourceTitle!),
+          if (item.sourceCategory?.isNotEmpty ?? false) _InfoRow(label: 'sourceCategory'.tr, value: item.sourceCategory!),
+          if (item.isImported && (item.uploader?.isNotEmpty ?? false)) _InfoRow(label: 'sourceUploader'.tr, value: item.uploader!),
+          if (item.sourceGalleryUrl?.isNotEmpty ?? false) _InfoRow(label: 'sourceGalleryUrl'.tr, value: item.sourceGalleryUrl!),
           if (item.tagUpdatedAt?.isNotEmpty ?? false) _InfoRow(label: 'tagUpdatedAt'.tr, value: item.tagUpdatedAt!),
+          _InfoRow(label: 'organizedStatus'.tr, value: item.organized ? 'organized'.tr : 'notOrganized'.tr),
+          if (item.organizedUpdatedAt?.isNotEmpty ?? false) _InfoRow(label: 'organizedUpdatedAt'.tr, value: item.organizedUpdatedAt!),
           _InfoRow(label: 'userRating'.tr, value: '-'),
           const SizedBox(height: 12),
           Text('tags'.tr, style: Theme.of(context).textTheme.titleMedium),
@@ -196,6 +244,9 @@ class _MangaLibraryDetailBody extends StatelessWidget {
     );
   }
 
+
+
+  bool get _hasSourceGallery => (item.sourceGalleryUrl?.trim().isNotEmpty ?? false) || (item.sourceGid != null && (item.sourceToken?.trim().isNotEmpty ?? false));
 
   Future<void> _fillTags(BuildContext context) async {
     bool hasSource = (item.galleryUrl?.trim().isNotEmpty ?? false) || (item.gid != null && (item.token?.trim().isNotEmpty ?? false));
@@ -215,6 +266,46 @@ class _MangaLibraryDetailBody extends StatelessWidget {
     }
 
     toast('mangaLibraryNoSourceGallery'.tr, isShort: false);
+  }
+
+
+  Future<void> _toggleOrganized() async {
+    try {
+      await mangaLibraryService.toggleOrganized(item);
+      toast(item.organized ? 'organizedCanceled'.tr : 'organizedSaved'.tr);
+    } catch (e) {
+      toast('${'operationFailed'.tr}: $e', isShort: false);
+    }
+  }
+
+  Future<void> _editTags(BuildContext context) async {
+    await showDialog(context: context, builder: (_) => MangaLibraryTagEditDialog(item: item));
+  }
+
+  void _openSourceOnlineDetail() {
+    String? galleryUrl = item.sourceGalleryUrl;
+    if ((galleryUrl == null || galleryUrl.trim().isEmpty) && item.sourceGid != null && (item.sourceToken?.trim().isNotEmpty ?? false)) {
+      galleryUrl = GalleryUrl(isEH: true, gid: item.sourceGid!, token: item.sourceToken!).url;
+    }
+    if (galleryUrl == null || galleryUrl.trim().isEmpty) {
+      toast('sourceGalleryIncomplete'.tr, isShort: false);
+      return;
+    }
+    toRoute(
+      Routes.details,
+      arguments: DetailsPageArgument(galleryUrl: GalleryUrl.parse(galleryUrl)),
+      preventDuplicates: false,
+    );
+  }
+
+
+  Future<void> _exportMetadata() async {
+    try {
+      await mangaLibraryService.exportImportedItemSidecar(item);
+      toast('libraryMetadataWriteSuccess'.tr);
+    } catch (e) {
+      toast('${'libraryMetadataWriteFailed'.tr}: $e', isShort: false);
+    }
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
@@ -256,24 +347,54 @@ class _MangaLibraryDetailCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (item.type == MangaLibraryItemType.pdf || (item.cover.path == null && item.cover.url.isEmpty)) {
-      return Container(
-        width: 150,
-        height: 214,
-        color: Theme.of(context).colorScheme.surfaceVariant,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.picture_as_pdf, size: 56, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(height: 8),
-              Text('PDF'.tr, style: Theme.of(context).textTheme.titleMedium),
-            ],
+      return Stack(
+        children: [
+          Container(
+            width: 150,
+            height: 214,
+            color: Theme.of(context).colorScheme.surfaceVariant,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.picture_as_pdf, size: 56, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(height: 8),
+                  Text('PDF'.tr, style: Theme.of(context).textTheme.titleMedium),
+                ],
+              ),
+            ),
           ),
-        ),
+          if (item.organized)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(color: Colors.green.shade600, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4)]),
+                child: const Icon(Icons.task_alt, color: Colors.white, size: 18),
+              ),
+            ),
+        ],
       );
     }
 
-    return EHImage(galleryImage: item.cover, containerWidth: 150, containerHeight: 214, fit: BoxFit.cover);
+    return Stack(
+      children: [
+        EHImage(galleryImage: item.cover, containerWidth: 150, containerHeight: 214, fit: BoxFit.cover),
+        if (item.organized)
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(color: Colors.green.shade600, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4)]),
+              child: const Icon(Icons.task_alt, color: Colors.white, size: 18),
+            ),
+          ),
+      ],
+    );
   }
 }
 

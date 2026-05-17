@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -44,12 +45,13 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   final List<TagData> selectedTags = [];
   final Set<String> ignoredSimilarityPairs = {};
   final Set<String> selectedItemKeys = {};
-
+  final Map<String, MangaLibraryItemUserData> _userData = {};
 
   String searchKeyword = '';
   MangaLibraryItemType? selectedType;
   String? selectedCategory;
-  bool filterMissingTags = false;
+  MangaLibraryTagFilterMode tagFilterMode = MangaLibraryTagFilterMode.all;
+  MangaLibraryOrganizedFilterMode organizedFilterMode = MangaLibraryOrganizedFilterMode.all;
   MangaLibrarySortType sortType = MangaLibrarySortType.downloadTimeDesc;
   MangaLibraryDisplayMode displayMode = MangaLibraryDisplayMode.compact;
   final Map<String, TagData> _tagTranslationMap = {};
@@ -74,6 +76,7 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   Future<void> doInitBean() async {
     Get.put(this, permanent: true);
     await _loadIgnoredSimilarityPairs();
+    await _loadUserData();
     await _loadDisplayMode();
   }
 
@@ -86,6 +89,19 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
     ignoredSimilarityPairs
       ..clear()
       ..addAll((await localConfigService.readWithAllSubKeys(configKey: ConfigEnum.mangaSimilarityIgnoredPair)).map((config) => config.subConfigKey));
+  }
+
+  Future<void> _loadUserData() async {
+    _userData.clear();
+    List<LocalConfig> configs = await localConfigService.readWithAllSubKeys(configKey: ConfigEnum.mangaLibraryItemUserData);
+    for (LocalConfig config in configs) {
+      try {
+        MangaLibraryItemUserData data = MangaLibraryItemUserData.fromJson(jsonDecode(config.value));
+        _userData[data.stableKey] = data;
+      } catch (e, stack) {
+        log.error('Read manga library user data failed: ${config.subConfigKey}', e, stack);
+      }
+    }
   }
 
   Future<void> _loadDisplayMode() async {
@@ -143,7 +159,8 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
       mangaLibraryImportService.importedItems.length,
       galleryDownloadService.gallerys.map((gallery) => '${gallery.gid}:${gallery.downloadStatusIndex}:${gallery.insertTime}:${gallery.tags}').join('|'),
       archiveDownloadService.archives.map((archive) => '${archive.gid}:${archive.archiveStatusCode}:${archive.insertTime}:${archive.tags}').join('|'),
-      mangaLibraryImportService.importedItems.map((item) => '${item.itemKey}:${item.updatedAt}:${item.tags}:${item.pageCount}:${item.sourceGalleryUrl ?? ''}').join('|'),
+      mangaLibraryImportService.importedItems.map((item) => '${item.itemKey}:${item.updatedAt}:${item.tags}:${item.pageCount}:${item.sourceGalleryUrl ?? ''}:${item.sourceCategory ?? ''}:${item.sourceUploader ?? ''}:${item.hasSidecarMetadata}:${item.sidecarPath ?? ''}:${item.organized}:${item.organizedUpdatedAt ?? ''}').join('|'),
+      _userData.values.map((data) => '${data.stableKey}:${data.organized}:${data.organizedUpdatedAt}').join('|'),
     ].join('||');
   }
 
@@ -166,6 +183,8 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         localPath: galleryDownloadService.computeGalleryDownloadAbsolutePath(gallery.title, gallery.gid),
         cover: cover,
         isOriginal: gallery.downloadOriginalImage,
+        organized: _userData[MangaLibraryItem.buildStableKey(type: MangaLibraryItemType.gallery, gid: gallery.gid, token: gallery.token)]?.organized ?? false,
+        organizedUpdatedAt: _userData[MangaLibraryItem.buildStableKey(type: MangaLibraryItemType.gallery, gid: gallery.gid, token: gallery.token)]?.organizedUpdatedAt,
       );
     }));
 
@@ -184,11 +203,15 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         localPath: archiveDownloadService.computeArchiveUnpackingPath(archive.title, archive.gid),
         cover: GalleryImage(url: archive.coverUrl),
         isOriginal: archive.isOriginal,
+        organized: _userData[MangaLibraryItem.buildStableKey(type: MangaLibraryItemType.archive, gid: archive.gid, token: archive.token)]?.organized ?? false,
+        organizedUpdatedAt: _userData[MangaLibraryItem.buildStableKey(type: MangaLibraryItemType.archive, gid: archive.gid, token: archive.token)]?.organizedUpdatedAt,
       );
     }));
 
     result.addAll(mangaLibraryImportService.importedItems.map((importedItem) {
       MangaLibraryItemType type = importedItem.type == MangaLibraryItemType.pdf.code ? MangaLibraryItemType.pdf : MangaLibraryItemType.importedFolder;
+      MangaLibraryItemUserData? userData = _userData[importedItem.itemKey];
+      MangaLibraryOrganizedState organizedState = _resolveOrganizedState(userData, importedItem);
       return MangaLibraryItem(
         type: type,
         title: importedItem.title,
@@ -206,7 +229,12 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         sourceToken: importedItem.sourceToken,
         sourceGalleryUrl: importedItem.sourceGalleryUrl,
         sourceTitle: importedItem.sourceTitle,
+        sourceCategory: importedItem.sourceCategory,
         tagUpdatedAt: importedItem.tagUpdatedAt,
+        sidecarPath: importedItem.sidecarPath,
+        hasSidecarMetadata: importedItem.hasSidecarMetadata,
+        organized: organizedState.organized,
+        organizedUpdatedAt: organizedState.organizedUpdatedAt,
       );
     }));
 
@@ -235,11 +263,23 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         return false;
       }
 
-      if (filterMissingTags && item.tags.isNotEmpty) {
+      if (tagFilterMode == MangaLibraryTagFilterMode.hasTags && item.tags.isEmpty) {
         return false;
       }
 
-      if (!filterMissingTags && selectedTags.isNotEmpty && !selectedTags.every((selectedTag) => item.tags.any((tag) => tag.namespace == selectedTag.namespace && tag.key == selectedTag.key))) {
+      if (tagFilterMode == MangaLibraryTagFilterMode.missingTags && item.tags.isNotEmpty) {
+        return false;
+      }
+
+      if (organizedFilterMode == MangaLibraryOrganizedFilterMode.organizedOnly && !item.organized) {
+        return false;
+      }
+
+      if (organizedFilterMode == MangaLibraryOrganizedFilterMode.unorganizedOnly && item.organized) {
+        return false;
+      }
+
+      if (selectedTags.isNotEmpty && !selectedTags.every((selectedTag) => item.tags.any((tag) => tag.namespace == selectedTag.namespace && tag.key == selectedTag.key))) {
         return false;
       }
 
@@ -267,7 +307,8 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
       searchKeyword.trim(),
       selectedType?.code ?? '',
       selectedCategory ?? '',
-      filterMissingTags,
+      tagFilterMode.index,
+      organizedFilterMode.index,
       sortType.index,
       selectedTags.map((tag) => _tagKey(tag.namespace, tag.key)).join('|'),
     ].join('||');
@@ -277,7 +318,7 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
     return items.map((item) => item.category).toSet().toList()..sort();
   }
 
-  bool get hasActiveFilters => searchKeyword.trim().isNotEmpty || selectedType != null || selectedCategory != null || selectedTags.isNotEmpty || filterMissingTags;
+  bool get hasActiveFilters => searchKeyword.trim().isNotEmpty || selectedType != null || selectedCategory != null || selectedTags.isNotEmpty || tagFilterMode != MangaLibraryTagFilterMode.all || organizedFilterMode != MangaLibraryOrganizedFilterMode.all;
 
   MangaLibraryItem? findItem(String itemId) {
     return items.firstWhereOrNull((item) => item.id == itemId);
@@ -408,20 +449,32 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
     return selectedTags.any((tag) => tag.namespace == tagData.namespace && tag.key == tagData.key);
   }
 
-  void toggleMissingTagsFilter() {
-    filterMissingTags = !filterMissingTags;
-    if (filterMissingTags) {
-      selectedTags.clear();
-    }
+  void cycleTagFilterMode() {
+    tagFilterMode = MangaLibraryTagFilterMode.values[(tagFilterMode.index + 1) % MangaLibraryTagFilterMode.values.length];
     _invalidateFilteredItems();
     update([libraryChangedId]);
   }
 
-  void clearMissingTagsFilter() {
-    if (!filterMissingTags) {
+  void clearTagFilterMode() {
+    if (tagFilterMode == MangaLibraryTagFilterMode.all) {
       return;
     }
-    filterMissingTags = false;
+    tagFilterMode = MangaLibraryTagFilterMode.all;
+    _invalidateFilteredItems();
+    update([libraryChangedId]);
+  }
+
+  void cycleOrganizedFilterMode() {
+    organizedFilterMode = MangaLibraryOrganizedFilterMode.values[(organizedFilterMode.index + 1) % MangaLibraryOrganizedFilterMode.values.length];
+    _invalidateFilteredItems();
+    update([libraryChangedId]);
+  }
+
+  void clearOrganizedFilterMode() {
+    if (organizedFilterMode == MangaLibraryOrganizedFilterMode.all) {
+      return;
+    }
+    organizedFilterMode = MangaLibraryOrganizedFilterMode.all;
     _invalidateFilteredItems();
     update([libraryChangedId]);
   }
@@ -439,7 +492,6 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
   }
 
   void toggleSelectedTag(TagData tagData) {
-    filterMissingTags = false;
     int index = selectedTags.indexWhere((tag) => tag.namespace == tagData.namespace && tag.key == tagData.key);
     if (index == -1) {
       selectedTags.add(TagData(namespace: tagData.namespace, key: tagData.key));
@@ -460,7 +512,8 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
     searchKeyword = '';
     selectedType = null;
     selectedCategory = null;
-    filterMissingTags = false;
+    tagFilterMode = MangaLibraryTagFilterMode.all;
+    organizedFilterMode = MangaLibraryOrganizedFilterMode.all;
     selectedTags.clear();
     _invalidateFilteredItems();
     update([libraryChangedId]);
@@ -547,7 +600,7 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
     ignoredSimilarityPairs.add(group.pairKey);
     await localConfigService.write(configKey: ConfigEnum.mangaSimilarityIgnoredPair, subConfigKey: group.pairKey, value: DateTime.now().toString());
     _invalidateSimilarityGroups();
-    update([similarityChangedId, libraryChangedId]);
+    await refreshSimilarityGroups(force: true);
   }
 
   Future<MangaLibraryDeleteResult> deleteItem(MangaLibraryItem item) async {
@@ -579,6 +632,8 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
 
   Future<void> _deleteItemInternal(MangaLibraryItem item, MangaLibraryDeleteResult result) async {
     result.addType(item.type);
+    _userData.remove(item.stableKey);
+    await localConfigService.delete(configKey: ConfigEnum.mangaLibraryItemUserData, subConfigKey: item.stableKey);
     if (item.type == MangaLibraryItemType.gallery) {
       await galleryDownloadService.deleteGalleryByGid(item.gid!);
     } else if (item.type == MangaLibraryItemType.archive) {
@@ -594,17 +649,157 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
 
   String buildTagFillSearchKeyword(MangaLibraryItem item) {
     String source = item.title.trim().isNotEmpty ? item.title : path.basenameWithoutExtension(item.localPath);
-    return source
-        .replaceAll(RegExp(r'\[(?:chinese|digital|uncensored|ai generated|english|japanese|korean|translated|translation)\]', caseSensitive: false), ' ')
-        .replaceAll(RegExp(r'\((?:chinese|digital|uncensored|ai generated|english|japanese|korean|translated|translation)\)', caseSensitive: false), ' ')
-        .replaceAll(RegExp(r'漢化|汉化|中文|無修正|无修正|翻訳|翻译|DL版|電子版', caseSensitive: false), ' ')
-        .replaceAll(RegExp(r'\[[^\]]*(?:汉化组|漢化組|翻译组|翻訳組|组|組)[^\]]*\]', caseSensitive: false), ' ')
-        .replaceAll(RegExp(r'\([^\)]*(?:汉化组|漢化組|翻译组|翻訳組|组|組)[^\)]*\)', caseSensitive: false), ' ')
-        .replaceAll(RegExp(r'[【】「」『』]'), ' ')
-        .replaceAll(RegExp(r'\[\s*\]|\(\s*\)|（\s*）'), ' ')
-        .replaceAll(RegExp(r'[_\-]+'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+    return buildEhSearchQueryFromLibraryTitle(source);
+  }
+
+
+
+  String tagDataListToString(List<TagData> tags) {
+    return tags.map((tag) => '${tag.namespace}:${tag.key}').join(',');
+  }
+
+  TagData parseManualTagInput(String input, {List<TagData> existingTags = const []}) {
+    String value = input.trim();
+    int colonIndex = value.indexOf(RegExp(r'[:：]'));
+    if (colonIndex <= 0 || colonIndex >= value.length - 1) {
+      throw Exception('manualTagInvalidFormat'.tr);
+    }
+
+    String namespace = normalizeMangaLibraryTagNamespace(value.substring(0, colonIndex));
+    String key = value.substring(colonIndex + 1).trim();
+    if (namespace.isEmpty || key.isEmpty) {
+      throw Exception('manualTagInvalidFormat'.tr);
+    }
+
+    TagData tag = _resolveManualTag(namespace, key);
+    if (existingTags.any((existed) => existed.namespace == tag.namespace && existed.key == tag.key)) {
+      throw Exception('manualTagDuplicate'.tr);
+    }
+    return tag;
+  }
+
+  TagData _resolveManualTag(String namespace, String key) {
+    String normalizedKey = key.trim();
+    TagData? exact = _tagTranslationMap[_tagKey(namespace, normalizedKey)] ?? _tagTranslationMap[_tagKey(namespace, normalizedKey.toLowerCase())];
+    if (exact != null) {
+      return exact;
+    }
+
+    String lowerKey = normalizedKey.toLowerCase();
+    for (TagData tag in _tagTranslationMap.values) {
+      if (tag.namespace != namespace) {
+        continue;
+      }
+      if (tag.key.toLowerCase() == lowerKey || tag.tagName?.toLowerCase() == lowerKey || tag.fullTagName?.toLowerCase() == lowerKey) {
+        return tag;
+      }
+    }
+
+    for (MangaLibraryItem item in items) {
+      for (TagData tag in item.tags) {
+        if (tag.namespace != namespace) {
+          continue;
+        }
+        if (tag.key.toLowerCase() == lowerKey || tag.tagName?.toLowerCase() == lowerKey || tag.fullTagName?.toLowerCase() == lowerKey) {
+          return TagData(namespace: tag.namespace, key: tag.key, translatedNamespace: tag.translatedNamespace, tagName: tag.tagName, fullTagName: tag.fullTagName);
+        }
+      }
+    }
+
+    return TagData(namespace: namespace, key: normalizedKey);
+  }
+
+  List<TagData> buildManualTagSuggestions(String input, {int limit = 20}) {
+    String value = input.trim();
+    String? namespace;
+    String keyword = value;
+    int colonIndex = value.indexOf(RegExp(r'[:：]'));
+    if (colonIndex >= 0) {
+      namespace = normalizeMangaLibraryTagNamespace(value.substring(0, colonIndex));
+      keyword = value.substring(colonIndex + 1).trim();
+    }
+
+    String lowerKeyword = keyword.toLowerCase();
+    Map<String, TagData> candidates = {};
+    void addCandidate(TagData tag) {
+      if (namespace != null && namespace!.isNotEmpty && tag.namespace != namespace) {
+        return;
+      }
+      if (lowerKeyword.isNotEmpty &&
+          !tag.key.toLowerCase().contains(lowerKeyword) &&
+          !(tag.tagName?.toLowerCase().contains(lowerKeyword) ?? false) &&
+          !(tag.fullTagName?.toLowerCase().contains(lowerKeyword) ?? false)) {
+        return;
+      }
+      candidates.putIfAbsent(_tagKey(tag.namespace, tag.key), () => tag);
+    }
+
+    for (MangaLibraryItem item in items) {
+      for (TagData tag in item.tags) {
+        addCandidate(tag);
+        if (candidates.length >= limit) {
+          return candidates.values.take(limit).toList();
+        }
+      }
+    }
+    for (TagData tag in _tagTranslationMap.values) {
+      addCandidate(tag);
+      if (candidates.length >= limit) {
+        break;
+      }
+    }
+    return candidates.values.take(limit).toList();
+  }
+
+  Future<void> toggleOrganized(MangaLibraryItem item) async {
+    String now = DateTime.now().toString();
+    bool organized = !item.organized;
+    MangaLibraryItemUserData data = MangaLibraryItemUserData(stableKey: item.stableKey, organized: organized, organizedUpdatedAt: now);
+    _userData[item.stableKey] = data;
+    await localConfigService.write(configKey: ConfigEnum.mangaLibraryItemUserData, subConfigKey: item.stableKey, value: jsonEncode(data.toJson()));
+
+    bool sidecarSynced = true;
+    if (item.isImported) {
+      sidecarSynced = await mangaLibraryImportService.updateImportedItemOrganized(item: item, organized: organized, organizedUpdatedAt: now);
+    }
+
+    refreshLibraryItems();
+    if (!sidecarSynced) {
+      toast('libraryMetadataWriteFailed'.tr, isShort: false);
+    }
+  }
+
+  MangaLibraryOrganizedState _resolveOrganizedState(MangaLibraryItemUserData? userData, MangaLibraryImportedItem importedItem) {
+    if (userData == null) {
+      return MangaLibraryOrganizedState(organized: importedItem.organized, organizedUpdatedAt: importedItem.organizedUpdatedAt);
+    }
+
+    DateTime? userTime = DateTime.tryParse(userData.organizedUpdatedAt);
+    DateTime? importedTime = DateTime.tryParse(importedItem.organizedUpdatedAt ?? '');
+    if (userTime != null && importedTime != null && importedTime.isAfter(userTime)) {
+      return MangaLibraryOrganizedState(organized: importedItem.organized, organizedUpdatedAt: importedItem.organizedUpdatedAt);
+    }
+    return MangaLibraryOrganizedState(organized: userData.organized, organizedUpdatedAt: userData.organizedUpdatedAt);
+  }
+
+  Future<void> updateItemTagsManually(MangaLibraryItem item, List<TagData> tags) async {
+    String tagString = tagDataListToString(tags);
+    if (item.isImported) {
+      await mangaLibraryImportService.updateImportedItemTags(item: item, tags: tagString);
+    } else if (item.type == MangaLibraryItemType.gallery) {
+      await GalleryDao.updateGalleryTags(item.gid!, tagString);
+      int index = galleryDownloadService.gallerys.indexWhere((gallery) => gallery.gid == item.gid);
+      if (index != -1) {
+        galleryDownloadService.gallerys[index] = galleryDownloadService.gallerys[index].copyWith(tags: tagString);
+      }
+    } else if (item.type == MangaLibraryItemType.archive) {
+      await ArchiveDao.updateArchiveTags(item.gid!, tagString);
+      int index = archiveDownloadService.archives.indexWhere((archive) => archive.gid == item.gid);
+      if (index != -1) {
+        archiveDownloadService.archives[index] = archiveDownloadService.archives[index].copyWith(tags: tagString);
+      }
+    }
+    refreshLibraryItems();
   }
 
   Future<List<Gallery>> searchTagFillCandidates(String keyword) async {
@@ -648,6 +843,7 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         sourceToken: detail.galleryUrl.token,
         sourceGalleryUrl: detail.galleryUrl.url,
         sourceTitle: detail.japaneseTitle ?? detail.rawTitle,
+        sourceCategory: detail.category,
         sourceUploader: detail.uploader,
         category: detail.category,
         uploader: detail.uploader,
@@ -685,6 +881,12 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
       parser: EHSpiderParser.detailPage2GalleryAndDetailAndApikey,
     );
     await fillMissingTagsFromDetail(item, detailPageInfo.galleryDetails);
+  }
+
+
+  Future<void> exportImportedItemSidecar(MangaLibraryItem item) async {
+    await mangaLibraryImportService.exportItemSidecar(item);
+    refreshLibraryItems();
   }
 
   Future<void> openReader(MangaLibraryItem item) async {

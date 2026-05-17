@@ -194,7 +194,8 @@ class MangaLibraryPage extends StatelessWidget {
           Chip(label: Text('${'itemCount'.tr}: $filteredCount/${mangaLibraryService.items.length}')),
           _buildTypeFilterButton(),
           _buildCategoryFilterButton(),
-          _buildMissingTagsFilterChip(),
+          _buildTagFilterChip(),
+          _buildOrganizedFilterChip(),
         ],
       ),
     );
@@ -319,12 +320,25 @@ class MangaLibraryPage extends StatelessWidget {
     );
   }
 
-  Widget _buildMissingTagsFilterChip() {
+  Widget _buildTagFilterChip() {
+    bool selected = mangaLibraryService.tagFilterMode != MangaLibraryTagFilterMode.all;
     return FilterChip(
-      avatar: Icon(mangaLibraryService.filterMissingTags ? Icons.check_circle : Icons.label_off, size: 18),
-      label: Text('missingTags'.tr),
-      selected: mangaLibraryService.filterMissingTags,
-      onSelected: (_) => mangaLibraryService.toggleMissingTagsFilter(),
+      avatar: Icon(selected ? Icons.check_circle : Icons.label_outline, size: 18),
+      label: Text('${'tagFilter'.tr}: ${_tagFilterTitle(mangaLibraryService.tagFilterMode)}'),
+      selected: selected,
+      onSelected: (_) => mangaLibraryService.cycleTagFilterMode(),
+    );
+  }
+
+  Widget _buildOrganizedFilterChip() {
+    bool selected = mangaLibraryService.organizedFilterMode != MangaLibraryOrganizedFilterMode.all;
+    return FilterChip(
+      avatar: Icon(selected ? Icons.task_alt : Icons.radio_button_unchecked, size: 18),
+      label: Text('${'greenLabel'.tr}: ${_organizedFilterTitle(mangaLibraryService.organizedFilterMode)}'),
+      selected: selected,
+      selectedColor: Colors.green.withOpacity(0.22),
+      checkmarkColor: Colors.green.shade700,
+      onSelected: (_) => mangaLibraryService.cycleOrganizedFilterMode(),
     );
   }
 
@@ -434,11 +448,17 @@ class MangaLibraryPage extends StatelessWidget {
               label: Text(mangaLibraryService.selectedCategory!),
               onDeleted: () => mangaLibraryService.setSelectedCategory(null),
             ),
-          if (mangaLibraryService.filterMissingTags)
+          if (mangaLibraryService.tagFilterMode != MangaLibraryTagFilterMode.all)
             InputChip(
               avatar: const Icon(Icons.label_off, size: 18),
-              label: Text('missingTags'.tr),
-              onDeleted: mangaLibraryService.clearMissingTagsFilter,
+              label: Text('${'tagFilter'.tr}: ${_tagFilterTitle(mangaLibraryService.tagFilterMode)}'),
+              onDeleted: mangaLibraryService.clearTagFilterMode,
+            ),
+          if (mangaLibraryService.organizedFilterMode != MangaLibraryOrganizedFilterMode.all)
+            InputChip(
+              avatar: const Icon(Icons.task_alt, size: 18, color: Colors.green),
+              label: Text('${'greenLabel'.tr}: ${_organizedFilterTitle(mangaLibraryService.organizedFilterMode)}'),
+              onDeleted: mangaLibraryService.clearOrganizedFilterMode,
             ),
           ...mangaLibraryService.selectedTags.map(
             (tag) => InputChip(
@@ -557,6 +577,28 @@ class MangaLibraryPage extends StatelessWidget {
   }
 
 
+  String _tagFilterTitle(MangaLibraryTagFilterMode mode) {
+    switch (mode) {
+      case MangaLibraryTagFilterMode.all:
+        return 'all'.tr;
+      case MangaLibraryTagFilterMode.hasTags:
+        return 'hasTags'.tr;
+      case MangaLibraryTagFilterMode.missingTags:
+        return 'missingTags'.tr;
+    }
+  }
+
+  String _organizedFilterTitle(MangaLibraryOrganizedFilterMode mode) {
+    switch (mode) {
+      case MangaLibraryOrganizedFilterMode.all:
+        return 'all'.tr;
+      case MangaLibraryOrganizedFilterMode.organizedOnly:
+        return 'organizedOnly'.tr;
+      case MangaLibraryOrganizedFilterMode.unorganizedOnly:
+        return 'unorganizedOnly'.tr;
+    }
+  }
+
   String _displayModeTitle(MangaLibraryDisplayMode mode) {
     switch (mode) {
       case MangaLibraryDisplayMode.cover:
@@ -566,6 +608,42 @@ class MangaLibraryPage extends StatelessWidget {
       case MangaLibraryDisplayMode.detail:
         return 'mangaLibraryDetailMode'.tr;
     }
+  }
+}
+
+class _MangaLibraryOrganizedBadge extends StatelessWidget {
+  const _MangaLibraryOrganizedBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'organized'.tr,
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: Colors.green.shade600,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4)],
+        ),
+        child: const Icon(Icons.task_alt, color: Colors.white, size: 18),
+      ),
+    );
+  }
+}
+
+class _MangaLibraryOrganizedChip extends StatelessWidget {
+  const _MangaLibraryOrganizedChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      visualDensity: VisualDensity.compact,
+      avatar: const Icon(Icons.task_alt, size: 16, color: Colors.white),
+      label: Text('organized'.tr, style: const TextStyle(color: Colors.white, fontSize: 12)),
+      backgroundColor: Colors.green.shade600,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
   }
 }
 
@@ -594,6 +672,12 @@ class _MangaLibraryCard extends StatelessWidget {
         child: Stack(
           children: [
             displayMode == MangaLibraryDisplayMode.cover ? _buildCoverMode(context) : _buildListMode(context),
+            if (item.organized)
+              const Positioned(
+                top: 6,
+                right: 42,
+                child: _MangaLibraryOrganizedBadge(),
+              ),
             if (mangaLibraryService.selectionMode)
               Positioned(
                 top: 4,
@@ -676,6 +760,7 @@ class _MangaLibraryCard extends StatelessWidget {
                       onTap: () => mangaLibraryService.setSelectedCategory(item.category),
                     ),
                     Text(_mangaLibraryTypeTitle(item.type)),
+                    if (item.organized) const _MangaLibraryOrganizedChip(),
                   ],
                 ),
                 const SizedBox(height: 4),

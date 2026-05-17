@@ -18,7 +18,9 @@ class DownloadExperimentalPage extends StatefulWidget {
 class _DownloadExperimentalPageState extends State<DownloadExperimentalPage> {
   final ScrollController _scrollController = ScrollController();
   bool _scanning = false;
+  bool _exportingMetadata = false;
   DownloadDirectoryScanResult? _lastResult;
+  MangaLibraryMetadataExportResult? _lastExportResult;
 
   @override
   void dispose() {
@@ -39,7 +41,9 @@ class _DownloadExperimentalPageState extends State<DownloadExperimentalPage> {
             _buildDownloadPath(),
             _buildChangePathHint(),
             _buildScanButton(),
+            _buildExportMetadataButton(),
             if (_lastResult != null) _buildResult(_lastResult!),
+            if (_lastExportResult != null) _buildExportResult(_lastExportResult!),
           ],
         ).withListTileTheme(context),
       ),
@@ -61,6 +65,16 @@ class _DownloadExperimentalPageState extends State<DownloadExperimentalPage> {
       leading: const Icon(Icons.info_outline),
       title: Text('changeDownloadPathInDownloadSetting'.tr),
       subtitle: Text('downloadExperimentalHint'.tr),
+    );
+  }
+
+  Widget _buildExportMetadataButton() {
+    return ListTile(
+      leading: _exportingMetadata ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save_alt),
+      title: Text('exportAllLibraryMetadata'.tr),
+      subtitle: Text('exportAllLibraryMetadataHint'.tr),
+      enabled: !_scanning && !_exportingMetadata,
+      onTap: _scanning || _exportingMetadata ? null : _handleExportMetadata,
     );
   }
 
@@ -103,6 +117,37 @@ class _DownloadExperimentalPageState extends State<DownloadExperimentalPage> {
     );
   }
 
+  Widget _buildExportResult(MangaLibraryMetadataExportResult result) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('libraryMetadataExportResult'.tr, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            _ResultRow(label: 'lastScanTime'.tr, value: result.exportTime),
+            _ResultRow(label: 'successCount'.tr, value: result.successCount.toString()),
+            _ResultRow(label: 'skippedCount'.tr, value: result.skippedCount.toString()),
+            _ResultRow(label: 'conflictCount'.tr, value: result.conflictCount.toString()),
+            _ResultRow(label: 'failureCount'.tr, value: result.failureCount.toString()),
+            if (result.conflicts.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('libraryMetadataConflict'.tr, style: Theme.of(context).textTheme.titleSmall),
+              ...result.conflicts.take(5).map((error) => Text(error, maxLines: 3, overflow: TextOverflow.ellipsis)),
+            ],
+            if (result.failures.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('error'.tr, style: Theme.of(context).textTheme.titleSmall),
+              ...result.failures.take(5).map((error) => Text(error, maxLines: 3, overflow: TextOverflow.ellipsis)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _handleScan() async {
     setState(() => _scanning = true);
     try {
@@ -122,6 +167,29 @@ class _DownloadExperimentalPageState extends State<DownloadExperimentalPage> {
       }
     }
   }
+
+  Future<void> _handleExportMetadata() async {
+    setState(() => _exportingMetadata = true);
+    try {
+      await requestStoragePermission();
+      MangaLibraryMetadataExportResult result = await mangaLibraryImportService.exportAllSidecars();
+      if (mounted) {
+        setState(() => _lastExportResult = result);
+      }
+      if (result.failureCount > 0) {
+        toast('${'libraryMetadataWriteFailed'.tr}: ${result.failures.take(2).join('\n')}', isShort: false);
+      } else {
+        toast('libraryMetadataWriteSuccess'.tr);
+      }
+    } catch (e) {
+      toast('${'libraryMetadataWriteFailed'.tr}: $e', isShort: false);
+    } finally {
+      if (mounted) {
+        setState(() => _exportingMetadata = false);
+      }
+    }
+  }
+
 }
 
 class _ResultRow extends StatelessWidget {

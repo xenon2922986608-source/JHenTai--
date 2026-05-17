@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:jhentai/src/database/database.dart';
+import 'package:jhentai/src/model/manga_library_item.dart';
 import 'package:jhentai/src/pages/manga_library/manga_library_tag_chip.dart';
 import 'package:jhentai/src/service/manga_library_service.dart';
 import 'package:jhentai/src/utils/manga_library_tag_util.dart';
@@ -74,13 +75,13 @@ class _NoTagsHint extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: dense ? 6 : 8, vertical: dense ? 3 : 5),
       decoration: BoxDecoration(
-        color: mangaLibraryService.filterMissingTags ? colorScheme.primaryContainer : colorScheme.surfaceVariant.withOpacity(0.65),
+        color: mangaLibraryService.tagFilterMode == MangaLibraryTagFilterMode.missingTags ? colorScheme.primaryContainer : colorScheme.surfaceVariant.withOpacity(0.65),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: mangaLibraryService.filterMissingTags ? colorScheme.primary : colorScheme.outlineVariant, width: mangaLibraryService.filterMissingTags ? 1.4 : 1),
+        border: Border.all(color: mangaLibraryService.tagFilterMode == MangaLibraryTagFilterMode.missingTags ? colorScheme.primary : colorScheme.outlineVariant, width: mangaLibraryService.tagFilterMode == MangaLibraryTagFilterMode.missingTags ? 1.4 : 1),
       ),
       child: Text(
-        mangaLibraryService.filterMissingTags ? '✓ ${'noTags'.tr}' : 'noTags'.tr,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: mangaLibraryService.filterMissingTags ? colorScheme.onPrimaryContainer : colorScheme.onSurfaceVariant, fontWeight: mangaLibraryService.filterMissingTags ? FontWeight.w600 : FontWeight.normal),
+        mangaLibraryService.tagFilterMode == MangaLibraryTagFilterMode.missingTags ? '✓ ${'noTags'.tr}' : 'noTags'.tr,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: mangaLibraryService.tagFilterMode == MangaLibraryTagFilterMode.missingTags ? colorScheme.onPrimaryContainer : colorScheme.onSurfaceVariant, fontWeight: mangaLibraryService.tagFilterMode == MangaLibraryTagFilterMode.missingTags ? FontWeight.w600 : FontWeight.normal),
       ),
     );
   }

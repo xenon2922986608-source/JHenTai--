@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:jhentai/src/model/manga_library_item.dart';
 import 'package:jhentai/src/pages/manga_library/manga_library_tag_groups.dart';
+import 'package:jhentai/src/routes/routes.dart';
 import 'package:jhentai/src/service/manga_library_service.dart';
-import 'package:jhentai/src/widget/eh_alert_dialog.dart';
+import 'package:jhentai/src/utils/route_util.dart';
+import 'package:jhentai/src/utils/toast_util.dart';
 import 'package:jhentai/src/widget/eh_image.dart';
 
 class MangaSimilarityPage extends StatefulWidget {
@@ -32,16 +34,43 @@ class _MangaSimilarityPageState extends State<MangaSimilarityPage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (groups.isEmpty) {
-            return Center(child: Text('noData'.tr));
+            return const _SimilarityEmptyState();
           }
 
           return ListView.separated(
+            key: const PageStorageKey<String>('mangaSimilarityList'),
             padding: const EdgeInsets.all(8),
             itemBuilder: (context, index) => _SimilarityGroupCard(group: groups[index]),
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemCount: groups.length,
           );
         },
+      ),
+    );
+  }
+}
+
+class _SimilarityEmptyState extends StatelessWidget {
+  const _SimilarityEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle_outline, size: 48),
+            const SizedBox(height: 12),
+            Text('mangaSimilarityAllDone'.tr, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: () => backRoute(currentRoute: Routes.mangaSimilarity),
+              child: Text('backToMangaLibrary'.tr),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -71,13 +100,21 @@ class _SimilarityGroupCard extends StatelessWidget {
               child: TextButton.icon(
                 icon: const Icon(Icons.visibility_off),
                 label: Text('ignoreThisSimilarity'.tr),
-                onPressed: () => mangaLibraryService.ignoreSimilarityGroup(group),
+                onPressed: _ignoreGroup,
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _ignoreGroup() async {
+    try {
+      await mangaLibraryService.ignoreSimilarityGroup(group);
+    } catch (e) {
+      toast('${'operationFailed'.tr}: $e', isShort: false);
+    }
   }
 }
 
@@ -116,12 +153,26 @@ class _SimilarityItem extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, MangaLibraryItem item) async {
-    bool? result = await showDialog(
+    bool? result = await showDialog<bool>(
       context: context,
-      builder: (_) => EHDialog(title: 'delete'.tr + '?', content: _deleteConfirmContent(item)),
+      builder: (dialogContext) => AlertDialog(
+        title: Text('delete'.tr + '?'),
+        content: Text(_deleteConfirmContent(item)),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: Text('cancel'.tr)),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: Text('OK'.tr)),
+        ],
+      ),
     );
-    if (result == true) {
+    if (result != true) {
+      return;
+    }
+
+    try {
       await mangaLibraryService.deleteItem(item);
+      await mangaLibraryService.refreshSimilarityGroups(force: true);
+    } catch (e) {
+      toast('${'operationFailed'.tr}: $e', isShort: false);
     }
   }
 
@@ -134,7 +185,6 @@ class _SimilarityItem extends StatelessWidget {
     }
     return 'deleteDownloadedMangaHint'.tr;
   }
-
 }
 
 class _SimilarityCover extends StatelessWidget {

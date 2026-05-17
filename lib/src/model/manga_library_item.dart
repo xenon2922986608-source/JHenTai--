@@ -24,6 +24,18 @@ enum MangaLibraryDisplayMode {
   detail,
 }
 
+enum MangaLibraryTagFilterMode {
+  all,
+  hasTags,
+  missingTags,
+}
+
+enum MangaLibraryOrganizedFilterMode {
+  all,
+  organizedOnly,
+  unorganizedOnly,
+}
+
 class MangaLibraryItem {
   final MangaLibraryItemType type;
   final int? gid;
@@ -42,7 +54,12 @@ class MangaLibraryItem {
   final String? sourceToken;
   final String? sourceGalleryUrl;
   final String? sourceTitle;
+  final String? sourceCategory;
   final String? tagUpdatedAt;
+  final String? sidecarPath;
+  final bool hasSidecarMetadata;
+  final bool organized;
+  final String? organizedUpdatedAt;
 
   const MangaLibraryItem({
     required this.type,
@@ -62,7 +79,12 @@ class MangaLibraryItem {
     this.sourceToken,
     this.sourceGalleryUrl,
     this.sourceTitle,
+    this.sourceCategory,
     this.tagUpdatedAt,
+    this.sidecarPath,
+    this.hasSidecarMetadata = false,
+    this.organized = false,
+    this.organizedUpdatedAt,
   });
 
   String get id => stableKey;
@@ -109,4 +131,36 @@ class MangaSimilarityGroup {
     List<String> ids = [first.id, second.id]..sort();
     return ids.join('|');
   }
+}
+
+
+class MangaLibraryItemUserData {
+  final String stableKey;
+  final bool organized;
+  final String organizedUpdatedAt;
+
+  const MangaLibraryItemUserData({required this.stableKey, required this.organized, required this.organizedUpdatedAt});
+
+  factory MangaLibraryItemUserData.fromJson(Map<String, dynamic> json) {
+    return MangaLibraryItemUserData(
+      stableKey: json['stableKey'] ?? '',
+      organized: json['organized'] ?? json['greenLabel'] ?? false,
+      organizedUpdatedAt: json['organizedUpdatedAt'] ?? json['greenLabelUpdatedAt'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'stableKey': stableKey,
+      'organized': organized,
+      'organizedUpdatedAt': organizedUpdatedAt,
+    };
+  }
+}
+
+class MangaLibraryOrganizedState {
+  final bool organized;
+  final String? organizedUpdatedAt;
+
+  const MangaLibraryOrganizedState({required this.organized, this.organizedUpdatedAt});
 }
