@@ -757,13 +757,24 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
 
   List<MangaLibraryItem> get batchTagFillTargets => items.where((item) => item.tags.isEmpty && item.title.trim().isNotEmpty).toList();
 
+
+  void prepareBatchTagFill() {
+    if (batchTagFillProgress?.isRunning == true) {
+      return;
+    }
+    batchTagFillProgress = MangaLibraryBatchTagFillProgress(totalCount: batchTagFillTargets.length);
+    _cancelBatchTagFill = false;
+    _batchPreferredDetails.clear();
+    update([libraryChangedId]);
+  }
+
   void cancelBatchTagFill() {
     _cancelBatchTagFill = true;
     batchTagFillProgress?.status = MangaLibraryBatchTagFillStatus.cancelling;
     update([libraryChangedId]);
   }
 
-  Future<MangaLibraryBatchTagFillProgress> startBatchFillMissingTags() async {
+  Future<MangaLibraryBatchTagFillProgress> startBatchFillMissingTags({MangaLibraryTagFillStrictness strictness = MangaLibraryTagFillStrictness.balanced}) async {
     if (batchTagFillProgress?.isRunning == true) {
       return batchTagFillProgress!;
     }
@@ -783,7 +794,7 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
     for (int index = 0; index < targets.length; index++) {
       if (_cancelBatchTagFill) {
         batchTagFillProgress!.status = MangaLibraryBatchTagFillStatus.cancelled;
-        batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: targets[index].title, searchQuery: '', status: 'cancelled', reason: 'cancelled'.tr));
+        batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: targets[index].title, searchQuery: '', status: 'cancelled', reason: 'cancelled'.tr, matchLevel: 'cancelled'));
         break;
       }
 
@@ -801,26 +812,36 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
 
       try {
         List<Gallery> candidates = await searchTagFillCandidates(searchQuery);
-        List<Gallery> exactMatches = candidates.where((candidate) => isExactMangaLibraryTitleMatch(item.title, candidate.title)).toList();
-        if (exactMatches.isEmpty) {
-          batchTagFillProgress!.noExactMatchCount++;
+        MangaLibraryTagFillMatchDecision matchDecision = selectMangaLibraryTagFillCandidate(
+          localTitle: item.title,
+          candidates: candidates.map((candidate) => MangaLibraryTagFillCandidateInfo(
+            title: candidate.title,
+            hasChineseLanguage: _candidateHasChineseLanguageFromSearchResult(candidate) ?? mangaLibraryTitleContainsChineseLanguage(candidate.title),
+            pageCount: candidate.pageCount,
+          )).toList(),
+          strictness: strictness,
+        );
+        if (!matchDecision.isSuccess || matchDecision.selectedIndex == null) {
+          if (matchDecision.matchLevel == 'exact') {
+            batchTagFillProgress!.multipleExactMatchCount++;
+          } else {
+            batchTagFillProgress!.noExactMatchCount++;
+          }
           batchTagFillProgress!.skippedCount++;
-          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'skipped_no_exact_match', reason: 'batchTagFillNoExactMatch'.tr));
+          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(
+            title: item.title,
+            searchQuery: searchQuery,
+            status: matchDecision.status,
+            reason: matchDecision.reasonText,
+            candidateTitle: matchDecision.candidateTitle,
+            score: matchDecision.score,
+            matchLevel: matchDecision.matchLevel,
+            reasons: matchDecision.reasons,
+          ));
           continue;
         }
-        String successStatus = 'success_exact_single';
-        Gallery selectedCandidate = exactMatches.single;
-        if (exactMatches.length > 1) {
-          _ChinesePreferredCandidateResult preferred = await _selectChinesePreferredExactMatch(item: item, exactMatches: exactMatches, searchQuery: searchQuery);
-          if (preferred.status != 'success_exact_chinese_preferred' || preferred.candidate == null) {
-            batchTagFillProgress!.multipleExactMatchCount++;
-            batchTagFillProgress!.skippedCount++;
-            batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: preferred.status, reason: preferred.reason));
-            continue;
-          }
-          selectedCandidate = preferred.candidate!;
-          successStatus = preferred.status;
-        }
+        Gallery selectedCandidate = candidates[matchDecision.selectedIndex!];
+        String successStatus = matchDecision.status;
 
         GalleryDetail? preferredDetail = _batchPreferredDetails.remove(selectedCandidate.gid);
         batchTagFillProgress!.status = MangaLibraryBatchTagFillStatus.fetchingDetail;
@@ -831,22 +852,41 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         } catch (e) {
           batchTagFillProgress!.failedDetailCount++;
           batchTagFillProgress!.failureCount++;
-          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_details', reason: e.toString()));
+          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_details', reason: e.toString(), candidateTitle: selectedCandidate.title, matchLevel: 'detail'));
           continue;
         }
 
         String detailTitle = detail.japaneseTitle ?? detail.rawTitle;
-        bool detailTitleMatches = isExactMangaLibraryTitleMatch(item.title, detail.rawTitle) || (detail.japaneseTitle != null && isExactMangaLibraryTitleMatch(item.title, detail.japaneseTitle!));
-        if (!detailTitleMatches) {
+        MangaLibraryTagFillMatchDecision detailDecision = selectMangaLibraryTagFillCandidate(
+          localTitle: item.title,
+          candidates: [
+            MangaLibraryTagFillCandidateInfo(
+              title: detailTitle,
+              hasChineseLanguage: mangaLibraryTagsContainChineseLanguage(detail.tags.values.flattened.map((tag) => tag.tagData)) || mangaLibraryTitleContainsChineseLanguage(detailTitle),
+              pageCount: detail.pageCount,
+            ),
+          ],
+          strictness: strictness,
+        );
+        if (!detailDecision.isSuccess) {
           batchTagFillProgress!.noExactMatchCount++;
           batchTagFillProgress!.skippedCount++;
-          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'skipped_no_exact_match', reason: 'batchTagFillDetailTitleMismatch'.tr));
+          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(
+            title: item.title,
+            searchQuery: searchQuery,
+            status: detailDecision.status == 'skipped_single_result_no_anchor' ? 'skipped_title_conflict' : detailDecision.status,
+            reason: detailDecision.reasonText,
+            candidateTitle: detailTitle,
+            score: detailDecision.score,
+            matchLevel: detailDecision.matchLevel,
+            reasons: detailDecision.reasons,
+          ));
           continue;
         }
         if (tagMap2TagString(detail.tags).isEmpty) {
           batchTagFillProgress!.failedDetailCount++;
           batchTagFillProgress!.failureCount++;
-          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_details', reason: 'candidateHasNoTags'.tr));
+          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_details', reason: 'candidateHasNoTags'.tr, candidateTitle: detailTitle, matchLevel: 'detail'));
           continue;
         }
 
@@ -855,16 +895,16 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
         try {
           await fillMissingTagsFromDetail(item, detail);
           batchTagFillProgress!.successCount++;
-          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: successStatus, reason: detailTitle));
+          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: successStatus, reason: detailTitle, candidateTitle: selectedCandidate.title, score: matchDecision.score, matchLevel: matchDecision.matchLevel, reasons: matchDecision.reasons));
         } catch (e) {
           batchTagFillProgress!.failedWriteCount++;
           batchTagFillProgress!.failureCount++;
-          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_write', reason: e.toString()));
+          batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_write', reason: e.toString(), candidateTitle: selectedCandidate.title, score: matchDecision.score, matchLevel: matchDecision.matchLevel, reasons: matchDecision.reasons));
         }
       } catch (e) {
         batchTagFillProgress!.failedSearchCount++;
         batchTagFillProgress!.failureCount++;
-        batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_search', reason: e.toString()));
+        batchTagFillProgress!.records.add(MangaLibraryBatchTagFillRecord(title: item.title, searchQuery: searchQuery, status: 'failed_search', reason: e.toString(), matchLevel: 'search'));
       } finally {
         update([libraryChangedId]);
         await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -941,6 +981,9 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
     String? language = candidate.language?.trim();
     if (language != null && language.isNotEmpty) {
       return isMangaLibraryChineseLanguageTag(namespace: 'language', key: language);
+    }
+    if (mangaLibraryTitleContainsChineseLanguage(candidate.title)) {
+      return true;
     }
     return null;
   }
@@ -1297,8 +1340,21 @@ class MangaLibraryBatchTagFillRecord {
   final String searchQuery;
   final String status;
   final String reason;
+  final String candidateTitle;
+  final int score;
+  final String matchLevel;
+  final List<String> reasons;
 
-  const MangaLibraryBatchTagFillRecord({required this.title, required this.searchQuery, required this.status, required this.reason});
+  const MangaLibraryBatchTagFillRecord({
+    required this.title,
+    required this.searchQuery,
+    required this.status,
+    required this.reason,
+    this.candidateTitle = '',
+    this.score = 0,
+    this.matchLevel = '',
+    this.reasons = const [],
+  });
 }
 
 class MangaLibraryDeleteResult {
