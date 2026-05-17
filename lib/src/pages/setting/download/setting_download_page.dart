@@ -69,6 +69,7 @@ class _SettingDownloadPageState extends State<SettingDownloadPage> {
               _buildManageArchiveDownloadConcurrency(),
               _buildDeleteArchiveFileAfterDownload(),
               _buildRestore(),
+              _buildDownloadExperimental(),
               _buildRestoreTasksAutomatically(),
             ],
           ).withListTileTheme(context),
@@ -311,6 +312,15 @@ class _SettingDownloadPageState extends State<SettingDownloadPage> {
       title: Text('restoreDownloadTasks'.tr),
       subtitle: Text('restoreDownloadTasksHint'.tr),
       onTap: _restore,
+    );
+  }
+
+  Widget _buildDownloadExperimental() {
+    return ListTile(
+      title: Text('downloadExperimental'.tr),
+      subtitle: Text('downloadExperimentalHint'.tr),
+      trailing: const Icon(Icons.keyboard_arrow_right),
+      onTap: () => toRoute(Routes.downloadExperimental),
     );
   }
 
