@@ -38,6 +38,15 @@ jobs:
       # Checkout branch
       - name: Checkout
         uses: actions/checkout@v3
+      # Output source revision for artifact parity checks
+      - name: Output build source
+        shell: bash
+        run: |
+          echo "Build target: ${{ matrix.target }}"
+          echo "Git ref: ${{ github.ref }}"
+          echo "Git SHA: ${{ github.sha }}"
+          echo "Checked out SHA: $(git rev-parse HEAD)"
+          echo "Pubspec version: $(head -n 5 pubspec.yaml | tail -n 1 | cut -d ' ' -f 2)"
       # Setup JDK
       - name: Setup JDK 17 (Android)
         if: matrix.target == 'Android'

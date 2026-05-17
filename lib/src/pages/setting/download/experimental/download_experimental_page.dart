@@ -4,6 +4,8 @@ import 'package:jhentai/src/extension/string_extension.dart';
 import 'package:jhentai/src/extension/widget_extension.dart';
 import 'package:jhentai/src/service/manga_library_import_service.dart';
 import 'package:jhentai/src/setting/download_setting.dart';
+import 'package:jhentai/src/utils/permission_util.dart';
+import 'package:jhentai/src/utils/toast_util.dart';
 import 'package:jhentai/src/widget/eh_wheel_speed_controller.dart';
 
 class DownloadExperimentalPage extends StatefulWidget {
@@ -104,8 +106,16 @@ class _DownloadExperimentalPageState extends State<DownloadExperimentalPage> {
   Future<void> _handleScan() async {
     setState(() => _scanning = true);
     try {
+      await requestStoragePermission();
       DownloadDirectoryScanResult result = await mangaLibraryImportService.rescanDownloadDirectory();
-      setState(() => _lastResult = result);
+      if (mounted) {
+        setState(() => _lastResult = result);
+      }
+      if (result.errorCount > 0 && result.importedFolderCount == 0 && result.importedPdfCount == 0 && result.restoredGalleryCount == 0 && result.restoredArchiveCount == 0) {
+        toast('${'operationFailed'.tr}: ${result.errors.take(2).join('\n')}', isShort: false);
+      }
+    } catch (e) {
+      toast('${'operationFailed'.tr}: $e', isShort: false);
     } finally {
       if (mounted) {
         setState(() => _scanning = false);

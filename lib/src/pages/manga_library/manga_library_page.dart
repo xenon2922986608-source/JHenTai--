@@ -30,60 +30,67 @@ class MangaLibraryPage extends StatelessWidget {
         centerTitle: true,
         titleSpacing: 0,
         title: const DownloadPageSegmentControl(galleryType: DownloadPageGalleryType.library),
-        actions: [
-          GetBuilder<MangaLibraryService>(
-            id: MangaLibraryService.libraryChangedId,
-            builder: (_) {
-              int count = mangaLibraryService.similarityGroupCount;
-              return Badge(
-                isLabelVisible: count > 0,
-                label: Text(count.toString()),
-                child: IconButton(
-                  tooltip: 'similarManga'.tr,
-                  icon: const Icon(Icons.content_copy),
-                  onPressed: () => toRoute(Routes.mangaSimilarity),
+        actions: GetPlatform.isMobile
+            ? [
+                GetBuilder<MangaLibraryService>(
+                  id: MangaLibraryService.libraryChangedId,
+                  builder: (_) => _buildMobileActionsMenu(context),
                 ),
-              );
-            },
-          ),
-          GetBuilder<MangaLibraryService>(
-            id: MangaLibraryService.libraryChangedId,
-            builder: (_) => mangaLibraryService.selectionMode
-                ? IconButton(
-                    tooltip: 'cancel'.tr,
-                    icon: const Icon(Icons.close),
-                    onPressed: mangaLibraryService.exitSelectionMode,
-                  )
-                : IconButton(
-                    tooltip: 'select'.tr,
-                    icon: const Icon(Icons.checklist),
-                    onPressed: () => mangaLibraryService.enterSelectionMode(),
-                  ),
-          ),
-          IconButton(
-            tooltip: 'search'.tr,
-            icon: const Icon(Icons.search),
-            onPressed: () => _showSearchDialog(context),
-          ),
-          GetBuilder<MangaLibraryService>(
-            id: MangaLibraryService.libraryChangedId,
-            builder: (_) => _buildSortButton(),
-          ),
-          GetBuilder<MangaLibraryService>(
-            id: MangaLibraryService.libraryChangedId,
-            builder: (_) => _buildDisplayModeButton(),
-          ),
-          GetBuilder<MangaLibraryService>(
-            id: MangaLibraryService.libraryChangedId,
-            builder: (_) => mangaLibraryService.hasActiveFilters
-                ? IconButton(
-                    tooltip: 'clearAllFilters'.tr,
-                    icon: const Icon(Icons.filter_alt_off),
-                    onPressed: mangaLibraryService.clearFilters,
-                  )
-                : const SizedBox(),
-          ),
-        ],
+              ]
+            : [
+                GetBuilder<MangaLibraryService>(
+                  id: MangaLibraryService.libraryChangedId,
+                  builder: (_) {
+                    int count = mangaLibraryService.similarityGroupCount;
+                    return Badge(
+                      isLabelVisible: count > 0,
+                      label: Text(count.toString()),
+                      child: IconButton(
+                        tooltip: 'similarManga'.tr,
+                        icon: const Icon(Icons.content_copy),
+                        onPressed: () => toRoute(Routes.mangaSimilarity),
+                      ),
+                    );
+                  },
+                ),
+                GetBuilder<MangaLibraryService>(
+                  id: MangaLibraryService.libraryChangedId,
+                  builder: (_) => mangaLibraryService.selectionMode
+                      ? IconButton(
+                          tooltip: 'cancel'.tr,
+                          icon: const Icon(Icons.close),
+                          onPressed: mangaLibraryService.exitSelectionMode,
+                        )
+                      : IconButton(
+                          tooltip: 'select'.tr,
+                          icon: const Icon(Icons.checklist),
+                          onPressed: () => mangaLibraryService.enterSelectionMode(),
+                        ),
+                ),
+                IconButton(
+                  tooltip: 'search'.tr,
+                  icon: const Icon(Icons.search),
+                  onPressed: () => _showSearchDialog(context),
+                ),
+                GetBuilder<MangaLibraryService>(
+                  id: MangaLibraryService.libraryChangedId,
+                  builder: (_) => _buildSortButton(),
+                ),
+                GetBuilder<MangaLibraryService>(
+                  id: MangaLibraryService.libraryChangedId,
+                  builder: (_) => _buildDisplayModeButton(),
+                ),
+                GetBuilder<MangaLibraryService>(
+                  id: MangaLibraryService.libraryChangedId,
+                  builder: (_) => mangaLibraryService.hasActiveFilters
+                      ? IconButton(
+                          tooltip: 'clearAllFilters'.tr,
+                          icon: const Icon(Icons.filter_alt_off),
+                          onPressed: mangaLibraryService.clearFilters,
+                        )
+                      : const SizedBox(),
+                ),
+              ],
       ),
       body: GetBuilder<GalleryDownloadService>(
         id: galleryDownloadService.galleryCountChangedId,
@@ -190,6 +197,95 @@ class MangaLibraryPage extends StatelessWidget {
           _buildMissingTagsFilterChip(),
         ],
       ),
+    );
+  }
+
+  Widget _buildMobileActionsMenu(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: 'mangaLibrary'.tr,
+      icon: const Icon(Icons.more_vert),
+      onSelected: (value) {
+        if (value == 'similar') {
+          toRoute(Routes.mangaSimilarity);
+          return;
+        }
+        if (value == 'select') {
+          mangaLibraryService.selectionMode ? mangaLibraryService.exitSelectionMode() : mangaLibraryService.enterSelectionMode();
+          return;
+        }
+        if (value == 'search') {
+          _showSearchDialog(context);
+          return;
+        }
+        if (value == 'clearFilters') {
+          mangaLibraryService.clearFilters();
+          return;
+        }
+        if (value.startsWith('sort:')) {
+          int index = int.parse(value.substring('sort:'.length));
+          mangaLibraryService.setSortType(MangaLibrarySortType.values[index]);
+          return;
+        }
+        if (value.startsWith('display:')) {
+          int index = int.parse(value.substring('display:'.length));
+          mangaLibraryService.setDisplayMode(MangaLibraryDisplayMode.values[index]);
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: 'similar',
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.content_copy),
+            title: Text('${'similarManga'.tr}${mangaLibraryService.similarityGroupCount > 0 ? ' (${mangaLibraryService.similarityGroupCount})' : ''}'),
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'select',
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(mangaLibraryService.selectionMode ? Icons.close : Icons.checklist),
+            title: Text(mangaLibraryService.selectionMode ? 'cancel'.tr : 'select'.tr),
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'search',
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.search),
+            title: Text('search'.tr),
+          ),
+        ),
+        if (mangaLibraryService.hasActiveFilters)
+          PopupMenuItem<String>(
+            value: 'clearFilters',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.filter_alt_off),
+              title: Text('clearAllFilters'.tr),
+            ),
+          ),
+        const PopupMenuDivider(),
+        ...MangaLibrarySortType.values.map(
+          (type) => CheckedPopupMenuItem<String>(
+            value: 'sort:${type.index}',
+            checked: type == mangaLibraryService.sortType,
+            child: Text('${'sortBy'.tr}: ${_sortTitle(type)}'),
+          ),
+        ),
+        const PopupMenuDivider(),
+        ...MangaLibraryDisplayMode.values.map(
+          (mode) => CheckedPopupMenuItem<String>(
+            value: 'display:${mode.index}',
+            checked: mode == mangaLibraryService.displayMode,
+            child: Text('${'displayMode'.tr}: ${_displayModeTitle(mode)}'),
+          ),
+        ),
+      ],
     );
   }
 

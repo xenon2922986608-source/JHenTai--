@@ -51,30 +51,36 @@ class MangaLibraryImportService extends GetxController with JHLifeCircleBeanErro
     result.restoredArchiveCount = await archiveDownloadService.restoreTasks();
 
     Directory downloadDir = Directory(downloadSetting.downloadPath.value);
-    if (!await downloadDir.exists()) {
-      result.errorCount++;
-      result.errors.add('${'downloadPath'.tr}: ${downloadSetting.downloadPath.value}');
-      return result;
-    }
-
-    await for (FileSystemEntity entity in downloadDir.list(followLinks: false)) {
-      try {
-        if (entity is Directory) {
-          await _scanDirectory(entity, result);
-          continue;
-        }
-
-        if (entity is File && FileUtil.isPdfExtension(entity.path)) {
-          await _upsertPdf(entity, result);
-          continue;
-        }
-
-        result.skippedCount++;
-      } catch (e, stack) {
+    try {
+      if (!await downloadDir.exists()) {
         result.errorCount++;
-        result.errors.add('${entity.path}: $e');
-        log.error('Scan download directory item failed: ${entity.path}', e, stack);
+        result.errors.add('${'downloadPath'.tr}: ${downloadSetting.downloadPath.value}');
+        return result;
       }
+
+      await for (FileSystemEntity entity in downloadDir.list(followLinks: false)) {
+        try {
+          if (entity is Directory) {
+            await _scanDirectory(entity, result);
+            continue;
+          }
+
+          if (entity is File && FileUtil.isPdfExtension(entity.path)) {
+            await _upsertPdf(entity, result);
+            continue;
+          }
+
+          result.skippedCount++;
+        } catch (e, stack) {
+          result.errorCount++;
+          result.errors.add('${entity.path}: $e');
+          log.error('Scan download directory item failed: ${entity.path}', e, stack);
+        }
+      }
+    } catch (e, stack) {
+      result.errorCount++;
+      result.errors.add('${downloadSetting.downloadPath.value}: $e');
+      log.error('Scan download directory failed: ${downloadSetting.downloadPath.value}', e, stack);
     }
 
     await refreshImportedItems();
