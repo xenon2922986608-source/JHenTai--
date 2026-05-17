@@ -24,6 +24,7 @@ import 'package:jhentai/src/pages/setting/advanced/setting_advanced_page.dart';
 import 'package:jhentai/src/pages/setting/cloud/config_sync/config_sync_page.dart';
 import 'package:jhentai/src/pages/setting/cloud/setting_cloud_page.dart';
 import 'package:jhentai/src/pages/setting/download/extra_gallery_scan_path/extra_gallery_scan_path_page.dart';
+import 'package:jhentai/src/pages/setting/download/experimental/download_experimental_page.dart';
 import 'package:jhentai/src/pages/setting/download/setting_download_page.dart';
 import 'package:jhentai/src/pages/setting/eh/profile/setting_eh_profile_page.dart';
 import 'package:jhentai/src/pages/setting/eh/setting_eh_page.dart';
