@@ -42,6 +42,7 @@ enum ConfigEnum {
   mangaLibraryDisplayMode('mangaLibraryDisplayMode'),
   mangaLibraryImportedItem('mangaLibraryImportedItem'),
   mangaLibraryItemUserData('mangaLibraryItemUserData'),
+  mangaLibraryPdfReadProgress('mangaLibraryPdfReadProgress'),
 
   /// page config
   downloadPageBodyType('downloadPageGalleryType'),

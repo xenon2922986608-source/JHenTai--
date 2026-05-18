@@ -11,6 +11,7 @@ import 'package:jhentai/src/pages/gallerys/simple/gallerys_page.dart';
 import 'package:jhentai/src/pages/layout/desktop/desktop_home_page.dart';
 import 'package:jhentai/src/pages/lock_page.dart';
 import 'package:jhentai/src/pages/manga_library/manga_library_detail_page.dart';
+import 'package:jhentai/src/pages/manga_library/manga_library_pdf_read_page.dart';
 import 'package:jhentai/src/pages/manga_library/manga_library_tag_fill_page.dart';
 import 'package:jhentai/src/pages/manga_library/manga_similarity_page.dart';
 import 'package:jhentai/src/pages/popular/popular_page.dart';
@@ -94,6 +95,7 @@ class Routes {
   static const String imagePage = "/image_page";
   static const String mangaSimilarity = "/manga_library/similarity";
   static const String mangaLibraryDetail = "/manga_library/detail";
+  static const String mangaLibraryPdfRead = "/manga_library/pdf_read";
   static const String mangaLibraryTagFill = "/manga_library/tag_fill";
 
   static const String settingPrefix = "/setting_";
@@ -269,6 +271,12 @@ class Routes {
       page: () => const MangaLibraryDetailPage().withEscOrFifthButton2BackRightRoute(),
       transition: defaultTransition,
       side: Side.right,
+    ),
+    EHPage(
+      name: mangaLibraryPdfRead,
+      page: () => const MangaLibraryPdfReadPage(),
+      transition: defaultTransition,
+      side: Side.fullScreen,
     ),
     EHPage(
       name: mangaLibraryTagFill,

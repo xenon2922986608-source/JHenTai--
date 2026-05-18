@@ -1212,9 +1212,18 @@ class MangaLibraryService extends GetxController with JHLifeCircleBeanErrorCatch
     refreshLibraryItems();
   }
 
+
+  Future<void> updatePdfPageCount(MangaLibraryItem item, int pageCount) async {
+    if (item.type != MangaLibraryItemType.pdf || pageCount <= 0 || item.pageCount == pageCount) {
+      return;
+    }
+    await mangaLibraryImportService.updateImportedItemPageCount(item: item, pageCount: pageCount);
+    refreshLibraryItems();
+  }
+
   Future<void> openReader(MangaLibraryItem item) async {
     if (item.type == MangaLibraryItemType.pdf) {
-      toast('pdfReaderNotSupported'.tr, isShort: false);
+      toRoute(Routes.mangaLibraryPdfRead, arguments: item);
       return;
     }
 

@@ -479,6 +479,35 @@ class MangaLibraryImportService extends GetxController with JHLifeCircleBeanErro
     }
   }
 
+
+  Future<void> updateImportedItemPageCount({required MangaLibraryItem item, required int pageCount}) async {
+    int index = importedItems.indexWhere((importedItem) => importedItem.itemKey == item.stableKey);
+    if (index == -1) {
+      throw Exception('mangaLibraryItemNotFound'.tr);
+    }
+
+    MangaLibraryImportedItem existed = importedItems[index];
+    String now = DateTime.now().toString();
+    MangaLibraryImportedItem updated = existed.copyWith(
+      pageCount: pageCount,
+      updatedAt: now,
+      sidecarPath: existed.sidecarPath ?? _sidecarPathFor(type: item.type, localPath: item.localPath),
+      hasSidecarMetadata: existed.hasSidecarMetadata,
+    );
+
+    await localConfigService.write(configKey: ConfigEnum.mangaLibraryImportedItem, subConfigKey: updated.itemKey, value: jsonEncode(updated.toJson()));
+    importedItems[index] = updated;
+    update([importedItemsChangedId]);
+
+    if (updated.hasSidecarMetadata) {
+      try {
+        await _writeSidecar(updated);
+      } catch (e, stack) {
+        log.error('Sync manga library PDF page count failed: ${item.localPath}', e, stack);
+      }
+    }
+  }
+
   Future<void> updateImportedItemTags({
     required MangaLibraryItem item,
     required String tags,
