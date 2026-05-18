@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:get/get.dart';
 import 'package:jhentai/src/enum/config_enum.dart';
 import 'package:jhentai/src/extension/get_logic_extension.dart';
@@ -14,6 +16,7 @@ class ReadProgressService extends GetxController with JHLifeCircleBeanErrorCatch
 
   /// Cache for read progress: gid -> readIndex
   final Map<String, int> _progressCache = {};
+  final Map<String, MangaLibraryPdfReadProgress> _pdfProgressCache = {};
 
   @override
   Future<void> doInitBean() async {
@@ -41,6 +44,38 @@ class ReadProgressService extends GetxController with JHLifeCircleBeanErrorCatch
     return progress;
   }
 
+  Future<MangaLibraryPdfReadProgress?> getPdfReadProgress(String stableKey) async {
+    if (_pdfProgressCache.containsKey(stableKey)) {
+      return _pdfProgressCache[stableKey];
+    }
+
+    final data = await localConfigService.read(
+      configKey: ConfigEnum.mangaLibraryPdfReadProgress,
+      subConfigKey: stableKey,
+    );
+    if (data == null || data.trim().isEmpty) {
+      return null;
+    }
+
+    try {
+      MangaLibraryPdfReadProgress progress = MangaLibraryPdfReadProgress.fromJson(jsonDecode(data));
+      _pdfProgressCache[stableKey] = progress;
+      return progress;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> updatePdfReadProgress(String stableKey, MangaLibraryPdfReadProgress progress) async {
+    _pdfProgressCache[stableKey] = progress;
+    await localConfigService.write(
+      configKey: ConfigEnum.mangaLibraryPdfReadProgress,
+      subConfigKey: stableKey,
+      value: jsonEncode(progress.toJson()),
+    );
+    updateSafely(['$readProgressUpdateId::$stableKey']);
+  }
+
   /// Update read progress and notify listeners
   Future<void> updateReadProgress(String recordKey, int index) async {
     _progressCache[recordKey] = index;
@@ -50,5 +85,29 @@ class ReadProgressService extends GetxController with JHLifeCircleBeanErrorCatch
       value: index.toString(),
     );
     updateSafely(['$readProgressUpdateId::$recordKey']);
+  }
+}
+
+class MangaLibraryPdfReadProgress {
+  final int currentPage;
+  final int pageCount;
+  final String updatedAt;
+
+  const MangaLibraryPdfReadProgress({required this.currentPage, required this.pageCount, required this.updatedAt});
+
+  factory MangaLibraryPdfReadProgress.fromJson(Map<String, dynamic> json) {
+    return MangaLibraryPdfReadProgress(
+      currentPage: (json['currentPage'] as num?)?.toInt() ?? 1,
+      pageCount: (json['pageCount'] as num?)?.toInt() ?? 0,
+      updatedAt: json['updatedAt'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'currentPage': currentPage,
+      'pageCount': pageCount,
+      'updatedAt': updatedAt,
+    };
   }
 }
