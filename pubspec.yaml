@@ -63,6 +63,7 @@ dependencies:
     git:
       url: https://github.com/jiangtian616/photo_view
       ref: separate
+  pdfx: ^2.9.2
   zoom_view: 
     git: https://github.com/jiangtian616/zoom_view
   package_info_plus: 8.0.3

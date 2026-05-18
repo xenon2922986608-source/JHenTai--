@@ -10,6 +10,10 @@ import 'package:jhentai/src/pages/history/history_page.dart';
 import 'package:jhentai/src/pages/gallerys/simple/gallerys_page.dart';
 import 'package:jhentai/src/pages/layout/desktop/desktop_home_page.dart';
 import 'package:jhentai/src/pages/lock_page.dart';
+import 'package:jhentai/src/pages/manga_library/manga_library_detail_page.dart';
+import 'package:jhentai/src/pages/manga_library/manga_library_pdf_read_page.dart';
+import 'package:jhentai/src/pages/manga_library/manga_library_tag_fill_page.dart';
+import 'package:jhentai/src/pages/manga_library/manga_similarity_page.dart';
 import 'package:jhentai/src/pages/popular/popular_page.dart';
 import 'package:jhentai/src/pages/ranklist/ranklist_page.dart';
 import 'package:jhentai/src/pages/read/read_page.dart';
@@ -22,6 +26,7 @@ import 'package:jhentai/src/pages/setting/advanced/setting_advanced_page.dart';
 import 'package:jhentai/src/pages/setting/cloud/config_sync/config_sync_page.dart';
 import 'package:jhentai/src/pages/setting/cloud/setting_cloud_page.dart';
 import 'package:jhentai/src/pages/setting/download/extra_gallery_scan_path/extra_gallery_scan_path_page.dart';
+import 'package:jhentai/src/pages/setting/download/experimental/download_experimental_page.dart';
 import 'package:jhentai/src/pages/setting/download/setting_download_page.dart';
 import 'package:jhentai/src/pages/setting/eh/profile/setting_eh_profile_page.dart';
 import 'package:jhentai/src/pages/setting/eh/setting_eh_page.dart';
@@ -88,6 +93,10 @@ class Routes {
   static const String webview = "/webview";
   static const String quickSearch = "/qucik_search";
   static const String imagePage = "/image_page";
+  static const String mangaSimilarity = "/manga_library/similarity";
+  static const String mangaLibraryDetail = "/manga_library/detail";
+  static const String mangaLibraryPdfRead = "/manga_library/pdf_read";
+  static const String mangaLibraryTagFill = "/manga_library/tag_fill";
 
   static const String settingPrefix = "/setting_";
   static const String settingAccount = "/setting_account";
@@ -120,6 +129,7 @@ class Routes {
   static const String proxy = "/setting_network/proxy";
 
   static const String extraGalleryScanPath = "/setting_download/extraGalleryScanPath";
+  static const String downloadExperimental = '/setting_download/experimental';
   static const String archiveBotSettings = '/setting/download/archive_bot';
 
   static const String superResolution = "/setting_advanced/superResolution";
@@ -249,6 +259,30 @@ class Routes {
       page: () => DownloadSearchPage(),
       transition: defaultTransition,
       side: Side.left,
+    ),
+    EHPage(
+      name: mangaSimilarity,
+      page: () => const MangaSimilarityPage(),
+      transition: defaultTransition,
+      side: Side.right,
+    ),
+    EHPage(
+      name: mangaLibraryDetail,
+      page: () => const MangaLibraryDetailPage().withEscOrFifthButton2BackRightRoute(),
+      transition: defaultTransition,
+      side: Side.right,
+    ),
+    EHPage(
+      name: mangaLibraryPdfRead,
+      page: () => const MangaLibraryPdfReadPage(),
+      transition: defaultTransition,
+      side: Side.fullScreen,
+    ),
+    EHPage(
+      name: mangaLibraryTagFill,
+      page: () => const MangaLibraryTagFillPage().withEscOrFifthButton2BackRightRoute(),
+      transition: defaultTransition,
+      side: Side.right,
     ),
     EHPage(
       name: singleImagePage,
@@ -395,6 +429,12 @@ class Routes {
     EHPage(
       name: extraGalleryScanPath,
       page: () => const ExtraGalleryScanPathPage().withEscOrFifthButton2BackRightRoute(),
+      transition: defaultTransition,
+      offAllBefore: false,
+    ),
+    EHPage(
+      name: downloadExperimental,
+      page: () => const DownloadExperimentalPage().withEscOrFifthButton2BackRightRoute(),
       transition: defaultTransition,
       offAllBefore: false,
     ),

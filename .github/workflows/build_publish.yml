@@ -1,7 +1,8 @@
 name: Build & Release
 
-# Trigger on push to master branch or with a tag
+# Trigger manually, on push to master branch, or with a tag
 on:
+  workflow_dispatch:
   push:
     branches:
       - 'master'
@@ -27,35 +28,6 @@ jobs:
             os: windows-latest
             artifact_name: release-Windows
             artifact_path: build/windows/*.zip
-          - target: Linux-x64-deb
-            os: ubuntu-22.04
-            artifact_name: release-Linux-x64-deb
-            artifact_path: |
-              build/linux/*.deb
-#          - target: Linux-x64-AppImage
-#            os: ubuntu-22.04
-#            artifact_name: release-Linux-x64-AppImage
-#            artifact_path: |
-#              build/linux/*.AppImage
-          - target: Linux-arm64-deb
-            os: ubuntu-22.04-arm
-            artifact_name: release-Linux-arm64-deb
-            artifact_path: |
-              build/linux/*.deb
-          - target: iOS
-            os: macos-latest
-            cache_pod_key: ios-pods
-            cache_pod_path: ios/Pods
-            cache_pod_restore_keys_hash_file: ios/Podfile.lock
-            artifact_name: release-iOS
-            artifact_path: build/**/*.ipa
-          - target: macOS
-            os: macos-latest
-            cache_pod_key: macos-pods
-            cache_pod_path: macos/Pods
-            cache_pod_restore_keys_hash_file: macos/Podfile.lock
-            artifact_name: release-macOS
-            artifact_path: /Users/runner/work/JHenTai/JHenTai/*.dmg
     outputs:
       version: ${{ steps.get_version.outputs.version }}
       arch: ${{ steps.get_version.outputs.arch}}
@@ -66,16 +38,147 @@ jobs:
       # Checkout branch
       - name: Checkout
         uses: actions/checkout@v3
+      # Output source revision for artifact parity checks
+      - name: Output build source
+        shell: bash
+        run: |
+          echo "Build target: ${{ matrix.target }}"
+          echo "Git ref: ${{ github.ref }}"
+          echo "Git SHA: ${{ github.sha }}"
+          echo "Checked out SHA: $(git rev-parse HEAD)"
+          echo "Pubspec version: $(head -n 5 pubspec.yaml | tail -n 1 | cut -d ' ' -f 2)"
+      # Setup JDK
+      - name: Setup JDK 17 (Android)
+        if: matrix.target == 'Android'
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: gradle
       # Add Android keystore
       - name: Setup Android keystore
         if: matrix.target == 'Android'
+        shell: bash
+        env:
+          ENCODED_KEYSTORE: ${{ secrets.ENCODED_KEYSTORE }}
+          KEY_PROPERTIES: ${{ secrets.KEY_PROPERTIES }}
         run: |
-          echo "${{ secrets.ENCODED_KEYSTORE }}" | base64 -di > android/app/upload-keystore.jks
-          echo "${{ secrets.KEY_PROPERTIES }}" > android/key.properties
+          set -euo pipefail
+          mkdir -p android/app
+
+          if [ -n "${ENCODED_KEYSTORE:-}" ] && [ -n "${KEY_PROPERTIES:-}" ]; then
+            printf '%s' "$ENCODED_KEYSTORE" | base64 --decode > android/app/upload-keystore.jks
+            printf '%s\n' "$KEY_PROPERTIES" | tr -d '\r' > android/key.properties
+            echo "Using repository Android signing config"
+            echo "ANDROID_SIGNING_CONFIG_SOURCE=repository" >> "$GITHUB_ENV"
+          else
+            echo "Using temporary CI Android signing config"
+            echo "ANDROID_SIGNING_CONFIG_SOURCE=temporary" >> "$GITHUB_ENV"
+
+            keytool -genkeypair \
+              -v \
+              -keystore android/app/ci-upload-keystore.jks \
+              -storepass android \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -alias ci \
+              -dname "CN=CI,O=Fork,C=US"
+
+            printf '%s\n' \
+              'storePassword=android' \
+              'keyPassword=android' \
+              'keyAlias=ci' \
+              'storeFile=ci-upload-keystore.jks' > android/key.properties
+          fi
+      # Diagnose Android signing identity without printing secrets
+      - name: Diagnose Android signing identity
+        if: matrix.target == 'Android'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          key_properties_file="android/key.properties"
+          if [ ! -f "$key_properties_file" ]; then
+            echo "android/key.properties was not generated" >&2
+            exit 1
+          fi
+
+          get_property() {
+            awk -F= -v key="$1" '
+              {
+                property_name = $1
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", property_name)
+                if (property_name == key) {
+                  sub(/^[^=]*=/, "")
+                  gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+                  print
+                  exit
+                }
+              }
+            ' "$key_properties_file"
+          }
+
+          store_file="$(get_property storeFile)"
+          key_alias="$(get_property keyAlias)"
+          store_password="$(get_property storePassword)"
+
+          if [ -z "$store_file" ] || [ -z "$key_alias" ] || [ -z "$store_password" ]; then
+            echo "Android signing config is missing storeFile, keyAlias, or storePassword" >&2
+            exit 1
+          fi
+
+          if [ "${ANDROID_SIGNING_CONFIG_SOURCE:-unknown}" = "repository" ] && [ "$store_file" != "upload-keystore.jks" ]; then
+            echo "Repository KEY_PROPERTIES must use storeFile=upload-keystore.jks so android/app/build.gradle resolves android/app/upload-keystore.jks" >&2
+            exit 1
+          fi
+
+          if [[ "$store_file" = /* ]]; then
+            resolved_store_file="$store_file"
+          else
+            resolved_store_file="android/app/$store_file"
+          fi
+
+          if [ ! -f "$resolved_store_file" ]; then
+            echo "Android keystore file does not exist at resolved path: $resolved_store_file" >&2
+            exit 1
+          fi
+
+          echo "Android signing config source: ${ANDROID_SIGNING_CONFIG_SOURCE:-unknown}"
+          echo "Android signing storeFile: $store_file"
+          echo "Android signing keyAlias: $key_alias"
+
+          keytool -list -v -keystore "$resolved_store_file" -alias "$key_alias" -storepass "$store_password" \
+            | awk '/Alias name:/{ print "Android signing " $0 } /SHA256:/{ print "Android signing certificate " $0; found=1; exit } END { if (!found) exit 1 }'
       # Add JHenTai api serret
       - name: Setup JHenTai API Secret
+        shell: bash
+        env:
+          JH_API_SECRET_CONFIG: ${{ secrets.JH_API_SECRET_CONFIG }}
         run: |
-          echo "${{ secrets.JH_API_SECRET_CONFIG }}" > lib/src/config/jh_api_secret_config.dart
+          mkdir -p lib/src/config
+
+          if [ -n "$JH_API_SECRET_CONFIG" ]; then
+            printf '%s\n' "$JH_API_SECRET_CONFIG" > lib/src/config/jh_api_secret_config.dart
+            echo "Using repository secret JHApiSecretConfig"
+          else
+            echo "Using fallback JHApiSecretConfig"
+            cat > lib/src/config/jh_api_secret_config.dart <<'EOF'
+          class JHApiSecretConfig {
+            static const String secret = '';
+          }
+          EOF
+          fi
+
+          if ! grep -q "JHApiSecretConfig" lib/src/config/jh_api_secret_config.dart; then
+            echo "Generated secret config is invalid; replacing with fallback JHApiSecretConfig"
+            cat > lib/src/config/jh_api_secret_config.dart <<'EOF'
+          class JHApiSecretConfig {
+            static const String secret = '';
+          }
+          EOF
+          fi
       # Setup Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -86,26 +189,6 @@ jobs:
       # Output Flutter Version
       - name: Output Flutter Version
         run: flutter --version
-      # Cache Pod
-      - name: Cache Pod
-        if: matrix.cache_pod_key != null
-        uses: actions/cache@v3
-        with:
-          key: ${{ matrix.cache_pod_key }}
-          path: ${{ matrix.cache_pod_path }}
-          restore-keys: ${{ matrix.cache_key }}-${{ hashFiles(matrix.cache_pod_restore_keys_hash_file)}}
-      # Setup JDK
-      - name: Setup JDK 17 (Android)
-        if: matrix.target == 'Android'
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-          cache: gradle
-      # Xcodebuild
-      - name: Build Xcode
-        if: matrix.os == 'macos-latest'
-        run: xcodebuild -resolvePackageDependencies -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release
       # Flutter Pub Get
       - name: Flutter Pub Get
         run: |
@@ -127,97 +210,33 @@ jobs:
           mv app-arm64-v8a-release.apk JHenTai-${{ steps.get_version.outputs.version }}-arm64-v8a.apk
           mv app-armeabi-v7a-release.apk JHenTai-${{ steps.get_version.outputs.version }}-armeabi-v7a.apk
           mv app-x86_64-release.apk JHenTai-${{ steps.get_version.outputs.version }}-x64.apk
-      # Build iOS .ipa
-      - name: Build iOS
-        if: matrix.target == 'ios'
-        run: |
-          flutter precache --ios
-          cd ios
-          pod update
-          cd ..
-          flutter build ios -t lib/src/main.dart --release --no-codesign
-          sh thin-payload.sh build/ios/iphoneos/*.app
-          cd build
-          mkdir -p Payload
-          mv ios/iphoneos/*.app Payload
-          zip -9 JHenTai_${{ steps.get_version.outputs.version }}.ipa -r Payload
-      # Build macOS .dmg
-      - name: Build macOS
-        if: matrix.target == 'macOS'
-        run: |
-          flutter precache --macos
-          cd macos
-          pod update
-          cd ..
-          sh dmg.sh
       # Build Windows .zip
       - name: Build Windows
         if: matrix.target == 'Windows'
+        shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
+
           flutter build windows -t lib/src/main.dart --release
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
           $DestDir = "build\windows\JHenTai_${{ steps.get_version.outputs.version }}"
           $SrcDir = "build\windows\x64\runner\Release"
-          New-Item -Path $DestDir -ItemType Directory
-          Copy-Item $SrcDir\* -Recurse $DestDir
-          Copy-Item -Filter *.dll -Path windows\* -Destination $DestDir -Force
-          Compress-Archive $DestDir build\windows\JHenTai_${{ steps.get_version.outputs.version }}_Windows.zip
-      # Build Linux .deb
-      - name: Build Linux deb
-        if: matrix.target == 'Linux-x64-deb' || matrix.target == 'Linux-arm64-deb'
-        run: |
-          # Prepare build depends
-          sudo apt-get update -y
-          sudo apt-get install -y ninja-build libfuse2 webkit2gtk-4.1
-          
-          # Compile
-          flutter build linux --release -t lib/src/main.dart
 
-          # Build debian package
-          mkdir -p build/linux/JHenTai-${{ steps.get_version.outputs.version }}-Linux-${{ steps.get_version.outputs.arch }}
-          cd build/linux/JHenTai-${{ steps.get_version.outputs.version }}-Linux-${{ steps.get_version.outputs.arch }}
-          mkdir -p opt/jhentai
-          mkdir -p usr/share/applications
-          mkdir -p usr/share/icons/hicolor/512x512/apps
-          cp -r ../${{ steps.get_version.outputs.arch }}/release/bundle/* opt/jhentai
-          cp -r ../../../linux/assets/DEBIAN .
-          chmod 0755 DEBIAN/postinst
-          chmod 0755 DEBIAN/postrm
+          if (!(Test-Path $SrcDir)) {
+            throw "Expected Windows release directory not found: $SrcDir"
+          }
 
-          cp ../../../linux/assets/top.jtmonster.jhentai.desktop usr/share/applications
-          cp ../../../assets/icon/JHenTai_512.png usr/share/icons/hicolor/512x512/apps/top.jtmonster.jhentai.png
+          New-Item -Path $DestDir -ItemType Directory -Force
+          Copy-Item -Path "$SrcDir\*" -Destination $DestDir -Recurse -Force
 
-          sed -i "/^Version: /s/Version: .*/Version: ${{ steps.get_version.outputs.version }}/" DEBIAN/control
-          if [ "${{ steps.get_version.outputs.arch }}" = "arm64" ]; then
-              sed -i "/^Architecture: /s/Architecture: .*/Architecture: arm64/" DEBIAN/control
-          fi
+          if (Test-Path "windows\*.dll") {
+            Copy-Item -Path "windows\*.dll" -Destination $DestDir -Force
+          }
 
-          cd ..
-          dpkg-deb --build --root-owner-group JHenTai-${{ steps.get_version.outputs.version }}-Linux-${{ steps.get_version.outputs.arch }}
-      # Build Linux .AppImage
-      - name: Build Linux AppImage
-        if: matrix.target == 'Linux-x64-AppImage'
-        run: |
-          # Prepare build depends
-          sudo apt-get update -y
-          sudo apt-get install -y ninja-build libfuse2 webkit2gtk-4.1
-          
-          # Compile
-          flutter build linux --release -t lib/src/main.dart
-          
-          cd build/linux
-          
-          mkdir AppDir
-          cp -r x64/release/bundle/* AppDir
-          mkdir -p AppDir/usr/share/icons/hicolor/512x512/apps/
-          mkdir -p AppDir/usr/share/applications
-          cp ../../linux/assets/top.jtmonster.jhentai.desktop AppDir/usr/share/applications
-          cp ../../assets/icon/JHenTai_512.png AppDir/usr/share/icons/hicolor/512x512/apps/top.jtmonster.jhentai.png
-          
-          wget -O appimage-builder https://github.com/AppImageCrafters/appimage-builder/releases/download/v1.1.0/appimage-builder-1.1.0-x86_64.AppImage
-          chmod +x appimage-builder
-          ./appimage-builder --skip-tests --recipe ../../linux/assets/AppImageBuilder.yml
-          
-          mv JHenTai-latest-x86_64.AppImage JHenTai-${{ steps.get_version.outputs.version }}-Linux-x64.AppImage
+          Compress-Archive -Path $DestDir -DestinationPath "build\windows\JHenTai_${{ steps.get_version.outputs.version }}_Windows.zip" -Force
       # Upload Artifacts
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -248,66 +267,6 @@ jobs:
           tag: ${{ github.ref_name }}
           allowUpdates: true
           bodyFile: changelog/${{ github.ref_name }}.md
-          artifacts: /tmp/artifacts/release-Android/*.apk,/tmp/artifacts/release-iOS/*.ipa,/tmp/artifacts/release-macOS/*.dmg,/tmp/artifacts/release-Windows/*.zip,/tmp/artifacts/release-Linux-x64-deb/*.deb,/tmp/artifacts/release-Linux-arm64-deb/*.deb
+          artifacts: /tmp/artifacts/release-Android/*.apk,/tmp/artifacts/release-Windows/*.zip
           artifactErrorsFailBuild: true
           replacesArtifacts: true
-
-      # Get IPA file size
-      - name: Get IPA file size
-        id: get_ipa_size
-        run: |
-          IPA_SIZE=$(stat -c %s /tmp/artifacts/release-iOS/*.ipa)
-          echo "ipa_size=$IPA_SIZE" >> $GITHUB_OUTPUT
-
-      # Get changelog content
-      - name: Get changelog content
-        id: get_changelog
-        run: |
-          # Read changelog and preserve newlines for JSON
-          CHANGELOG=$(cat changelog/${{ github.ref_name }}.md | jq -Rs .)
-          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
-
-      # Extract build version from tag
-      - name: Get build version
-        id: get_build_version
-        run: |
-          BUILD_VERSION=$(echo "${{ github.ref_name }}" | grep -oE '\+[0-9]+' | tr -d '+')
-          echo "build_version=$BUILD_VERSION" >> $GITHUB_OUTPUT
-
-      # Update AltSource.json
-      - name: Update AltSource.json
-        run: |
-          FULL_VERSION="${{ needs.Build.outputs.version }}"
-          # Remove build number part (content after +)
-          VERSION="${FULL_VERSION%%+*}"
-          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          
-          # Get changelog as raw string (remove quotes added by jq -Rs)
-          CHANGELOG=${{ steps.get_changelog.outputs.changelog }}
-          
-          # Create new version entry
-          jq --arg version "$VERSION" \
-             --arg build "${{ steps.get_build_version.outputs.build_version }}" \
-             --arg date "$DATE" \
-             --arg desc "$CHANGELOG" \
-             --arg url "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/JHenTai_${FULL_VERSION}.ipa" \
-             --arg size "${{ steps.get_ipa_size.outputs.ipa_size }}" \
-             '.apps[0].versions[0] = {
-                "version": $version,
-                "buildVersion": $build,
-                "date": $date,
-                "localizedDescription": $desc,
-                "downloadURL": $url,
-                "size": ($size | tonumber)
-              }' altsource/AltSource.json > altsource/AltSource.json.tmp
-          mv altsource/AltSource.json.tmp altsource/AltSource.json
-
-      # Commit and push updated AltSource.json
-      - name: Commit changes
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add altsource/AltSource.json
-          git commit -m "Update AltSource.json for version ${{ needs.Build.outputs.version }}"
-          git push origin HEAD:master
-
