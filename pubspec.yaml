@@ -63,6 +63,7 @@ dependencies:
     git:
       url: https://github.com/jiangtian616/photo_view
       ref: separate
+  pdfx: ^2.9.2
   zoom_view: 
     git: https://github.com/jiangtian616/zoom_view
   package_info_plus: 8.0.3
@@ -119,7 +120,7 @@ dependencies:
     git: https://github.com/jiangtian616/JDownloader
   device_info_plus: 11.1.0
   template_expressions: 3.2.0+7
-  uuid: 4.4.0
+  uuid: ^4.5.1
   xml: 6.5.0
   telegram: 0.0.9
   

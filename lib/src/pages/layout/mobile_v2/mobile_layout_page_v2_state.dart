@@ -113,6 +113,14 @@ class MobileLayoutPageV2State with DoubleTapToRefreshStateMixin {
         shouldRender: false,
       ),
       TabBarIcon(
+        name: TabBarIconNameEnum.mangaLibrary,
+        routeName: Routes.download,
+        selectedIcon: const Icon(Icons.collections_bookmark),
+        unselectedIcon: const Icon(Icons.collections_bookmark_outlined),
+        page: () => const DownloadPage(),
+        shouldRender: false,
+      ),
+      TabBarIcon(
         name: TabBarIconNameEnum.setting,
         routeName: Routes.setting,
         selectedIcon: const Icon(Icons.settings),
